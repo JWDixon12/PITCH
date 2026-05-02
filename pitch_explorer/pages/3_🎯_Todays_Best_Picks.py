@@ -26,17 +26,11 @@ inject_global_css()
 
 
 # ---------------------------------------------------------------------------
-# Sticky top toolbar — same pattern as the slate
+# Top toolbar (no sticky — overflow:visible on stMain breaks page scroll)
 # ---------------------------------------------------------------------------
 st.markdown(
     """
     <style>
-      [data-testid="stMain"],
-      [data-testid="stMain"] > div,
-      [data-testid="stMain"] .block-container,
-      [data-testid="stMain"] [data-testid="stVerticalBlock"] {
-          overflow: visible !important;
-      }
       [data-testid="stHeader"] {
           background: rgba(14, 17, 23, 0.85) !important;
           backdrop-filter: blur(6px);
@@ -50,9 +44,6 @@ st.markdown(
       }
       [data-testid="stElementContainer"]:has(.pitch-toolbar-anchor)
         + [data-testid="stHorizontalBlock"] {
-          position: sticky !important;
-          top: 3rem;
-          z-index: 100 !important;
           background: #0E1117;
           padding: 14px 1rem 12px 1rem !important;
           margin: 0 -1rem 1rem -1rem !important;

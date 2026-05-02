@@ -26,30 +26,23 @@ st.set_page_config(
 )
 inject_global_css()
 
-# ---- Sticky top toolbar (sidebar handles page navigation) -------------------
-# We force `overflow: visible` on every Streamlit container ancestor so
-# `position: sticky` actually pins instead of being clipped. The toolbar
-# uses an invisible anchor div + :has() so CSS can target it reliably.
+# ---- Top toolbar (no sticky — that broke page scrolling) --------------------
+# Earlier versions used `position: sticky` plus `overflow: visible !important`
+# on `[data-testid="stMain"]`, but stMain IS the main scroll container — making
+# it overflow:visible removed the page scrollbar entirely. The toolbar now just
+# scrolls with the page; the sidebar still holds nav links and the date is the
+# first thing on screen, so this is a small UX cost vs. a broken page.
 st.markdown(
     """
     <style>
-      /* Make every container in the main scroll chain non-clipping so sticky
-         children pin to the viewport rather than to a hidden parent. */
-      [data-testid="stMain"],
-      [data-testid="stMain"] > div,
-      [data-testid="stMain"] .block-container,
-      [data-testid="stMain"] [data-testid="stVerticalBlock"] {
-          overflow: visible !important;
-      }
-
-      /* Translucent main header so the sticky toolbar meshes with it */
+      /* Translucent Streamlit header — visual continuity with the toolbar */
       [data-testid="stHeader"] {
           background: rgba(14, 17, 23, 0.85) !important;
           backdrop-filter: blur(6px);
           z-index: 99 !important;
       }
 
-      /* Hide the anchor element completely (CSS hook only) */
+      /* Hide the anchor element (CSS hook only) */
       [data-testid="stElementContainer"]:has(.pitch-toolbar-anchor) {
           height: 0 !important;
           margin: 0 !important;
@@ -57,12 +50,9 @@ st.markdown(
           overflow: hidden !important;
       }
 
-      /* Pin the columns row that comes right after the anchor */
+      /* Style the columns row that sits right after the anchor */
       [data-testid="stElementContainer"]:has(.pitch-toolbar-anchor)
         + [data-testid="stHorizontalBlock"] {
-          position: sticky !important;
-          top: 3rem;
-          z-index: 100 !important;
           background: #0E1117;
           padding: 14px 1rem 12px 1rem !important;
           margin: 0 -1rem 1rem -1rem !important;
