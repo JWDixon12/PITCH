@@ -327,18 +327,51 @@ def winprob_bar(r: pd.Series) -> str:
         )
     if eg_total is not None and pd.notna(eg_total):
         parts.append(f'Total <b style="color:#C9D1D9;">{float(eg_total):.2f}</b>')
+    # Parse top3_scores ("1-1 (12.3%) | 1-0 (10.4%) | 2-1 (8.7%)") into the
+    # top entry plus the two alternatives, so we can surface alternatives
+    # explicitly instead of hiding them in a tooltip.
+    top_entries: list[str] = []
+    top_pct: str | None = None
+    if top3:
+        for chunk in [s.strip() for s in str(top3).split("|") if s.strip()]:
+            top_entries.append(chunk)
+        if top_entries:
+            # First entry's pct (e.g. "1-1 (12.3%)" -> "12.3%")
+            m = top_entries[0]
+            if "(" in m and "%)" in m:
+                top_pct = m[m.find("(")+1:m.find("%)")] + "%"
+
     if most_likely and most_likely != "—":
-        ml_title = f'Top 3 scorelines: {top3}' if top3 else most_likely
-        # "VIL 2 - 0 LEV" style — pad spaces around the score for readability
         score_str = str(most_likely).replace("-", " - ")
         ml_label  = f"{team_abbr(home)} {score_str} {team_abbr(away)}"
+        pct_suffix = f' <span style="color:#8B949E;font-weight:500;">({top_pct})</span>' if top_pct else ""
         parts.append(
-            f'Most likely <b style="color:#C9D1D9;" '
-            f'title="{ml_title}">{ml_label}</b>'
+            f'Most likely <b style="color:#C9D1D9;">{ml_label}</b>{pct_suffix}'
         )
     parts.append(f'<span style="font-style:italic;color:#586069;">'
                  f'{n_sims:,} sims</span>')
     projected_line = " &nbsp;·&nbsp; ".join(parts)
+
+    # Small "also possible" line — show entries 2 + 3 if present.
+    also_html = ""
+    if len(top_entries) > 1:
+        alts = top_entries[1:3]  # entries 2 and 3
+        # Each is "1-0 (10.4%)" — strip the % so it's "1-0 · 10.4%"
+        formatted = []
+        for e in alts:
+            if "(" in e and "%)" in e:
+                score = e.split("(")[0].strip()
+                pct = e[e.find("(")+1:e.find("%)")] + "%"
+                formatted.append(f"{score} <span style=\"color:#8B949E;\">({pct})</span>")
+            else:
+                formatted.append(e)
+        if formatted:
+            also_html = (
+                f'<div style="text-align:center;font-size:12px;color:#586069;'
+                f'margin-top:4px;letter-spacing:0.02em;">'
+                f'Also possible: {" &nbsp;·&nbsp; ".join(formatted)}'
+                f'</div>'
+            )
 
     # Calibration: compact one-line "Home 62% → 142-79 (64.3%)  ·  Draw 22% → ..." footer
     cal_h = calibrate_lookup(cal_ml, "ML_home", p_h)
@@ -402,6 +435,7 @@ def winprob_bar(r: pd.Series) -> str:
         f'margin-top:18px;line-height:1.55;">'
         f'{projected_line}'
         f'</div>'
+        + also_html
         + cal_block
         + f'</div>'
     )
