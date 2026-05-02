@@ -164,46 +164,51 @@ def game_header(r: pd.Series) -> str:
     status_html = fmt_status(r.get("status"))
     status_part = f' &nbsp;·&nbsp; {status_html}' if status_html else ""
 
+    # Logos sit immediately to the left of each team name, mirroring the
+    # MLB layout: "[logo] HOME  vs  [logo] AWAY"
     return (
         f'<div style="border-radius:14px;overflow:hidden;margin-top:18px;'
         f'background:linear-gradient(90deg,{accent}40 0%,#1C2128 50%,{accent}40 100%);'
         f'border:1px solid #2D333B;">'
-        f'<div style="padding:18px 22px;">'
+        f'<div style="padding:18px 24px;">'
         f'<div style="display:flex;justify-content:space-between;align-items:center;'
         f'flex-wrap:wrap;gap:12px;">'
-        # Left: home @ away with logos
-        f'<div style="font-size:21px;font-weight:700;color:#F0F6FC;">'
-        f'{home_logo}<span style="margin:0 8px;">{home}</span>'
-        f'<span style="color:#8B949E;font-weight:400;">vs</span>'
-        f'<span style="margin:0 8px;">{away}</span>{away_logo}'
+        # Left: [logo] HOME vs [logo] AWAY
+        f'<div style="font-size:22px;font-weight:700;color:#F0F6FC;">'
+        f'{home_logo} <span style="margin:0 6px;">{home}</span>'
+        f'<span style="color:#8B949E;font-weight:400;margin:0 6px;">vs</span>'
+        f'{away_logo} <span style="margin:0 6px;">{away}</span>'
         f'</div>'
-        # Right: time + league
+        # Right: time, league, status
         f'<div style="text-align:right;">'
-        f'<div style="font-size:13px;color:#C9D1D9;font-weight:600;">'
-        f'{fmt_kickoff(r["kickoff"])}{status_part}</div>'
-        f'<div style="font-size:11px;color:#8B949E;">{league_label(lg)}</div>'
+        f'<div style="font-size:14px;color:#C9D1D9;font-weight:600;">'
+        f'{fmt_kickoff(r["kickoff"])}</div>'
+        + (f'<div style="font-size:12px;margin-top:2px;">{status_html}</div>'
+            if status_html else "")
+        + f'<div style="font-size:11px;color:#8B949E;margin-top:2px;">{league_label(lg)}</div>'
         f'</div>'
         f'</div>'
-        + (f'<div style="margin-top:8px;font-size:12px;color:#8B949E;">{venue_line}</div>'
+        + (f'<div style="margin-top:10px;font-size:12px;color:#8B949E;">'
+            f'🏟️ {venue_line}</div>'
             if venue_line else "")
         + f'</div></div>'
     )
 
 
-def _cal_line(label: str, sim_pct: int, cal: dict | None,
-                yes_word: str = "wins", no_word: str = "losses") -> str:
-    """Single italic calibration line: 'Home (62%) → 142-79 (64.3%) over 221 games'."""
+def _cal_inline(label: str, cal: dict | None) -> str:
+    """Compact one-fragment calibration string for the win-prob bar footer.
+    Returns '' when there's no usable bucket — caller filters those out.
+    Format: 'Home 62% → 142-79 (64.3%)'
+    """
     if not cal or int(cal.get("n_games", 0)) < 10:
         return ""
     return (
-        f'<div style="font-size:11px;color:#8B949E;font-style:italic;margin-top:2px;" '
-        f'title="From the 13.7K-match historical calibration table.">'
+        f'<span title="From the 13.7K-match historical calibration table, '
+        f'over {int(cal["n_games"]):,} comparable games.">'
         f'<span style="color:#C9D1D9;">{label}</span> '
-        f'<span style="color:#586069;">(sim {sim_pct}%)</span> &rarr; '
-        f'historically <b style="color:#C9D1D9;">'
-        f'{int(cal["wins"])}-{int(cal["losses"])} ({cal["actual_rate"]*100:.1f}%)</b> '
-        f'over {int(cal["n_games"]):,} games'
-        f'</div>'
+        f'{int(cal["pct"])}% &rarr; <b style="color:#C9D1D9;">'
+        f'{int(cal["wins"])}-{int(cal["losses"])} '
+        f'({cal["actual_rate"]*100:.1f}%)</b></span>'
     )
 
 
@@ -239,24 +244,48 @@ def winprob_bar(r: pd.Series) -> str:
     h_pct = p_h * 100; d_pct = p_d * 100; a_pct = p_a * 100
     most_likely = r.get("most_likely_score") or "—"
     eg_h = r.get("lambda_home"); eg_a = r.get("lambda_away")
-    eg_str = ""
-    if eg_h is not None and pd.notna(eg_h) and eg_a is not None and pd.notna(eg_a):
-        eg_str = (f' &nbsp;·&nbsp; <span title="Expected goals (sim)">'
-                  f'EG <b>{float(eg_h):.2f} – {float(eg_a):.2f}</b></span>')
+    eg_total = r.get("expected_total_goals")
     n_sims = int(r.get("n_sims") or 0)
     top3 = r.get("top3_scores") or ""
 
-    # Calibration blurbs for H / D / A
+    # "Projected: HOME 1.95 — 1.20 AWAY · Total 3.15 · most likely 2-1 · 10K sims"
+    parts = []
+    if (eg_h is not None and pd.notna(eg_h)
+        and eg_a is not None and pd.notna(eg_a)):
+        parts.append(
+            f'<span title="Expected goals from sim (lambda_home / lambda_away)">'
+            f'Projected: <b style="color:#C9D1D9;">{home} {float(eg_h):.2f}</b> — '
+            f'<b style="color:#C9D1D9;">{float(eg_a):.2f} {away}</b></span>'
+        )
+    if eg_total is not None and pd.notna(eg_total):
+        parts.append(f'Total <b style="color:#C9D1D9;">{float(eg_total):.2f}</b>')
+    if most_likely and most_likely != "—":
+        ml_title = f'Top 3 scorelines: {top3}' if top3 else most_likely
+        parts.append(f'Most likely <b style="color:#C9D1D9;" '
+                     f'title="{ml_title}">{most_likely}</b>')
+    parts.append(f'<span style="font-style:italic;color:#586069;">'
+                 f'{n_sims:,} sims</span>')
+    projected_line = " &nbsp;·&nbsp; ".join(parts)
+
+    # Calibration: compact one-line "Home 62% → 142-79 (64.3%)  ·  Draw 22% → ..." footer
     cal_h = calibrate_lookup(cal_ml, "ML_home", p_h)
     cal_d = calibrate_lookup(cal_ml, "Draw",    p_d)
     cal_a = calibrate_lookup(cal_ml, "ML_away", p_a)
-    cal_block = (
-        f'<div style="margin-top:10px;padding-top:8px;border-top:1px solid #21262D;">'
-        + _cal_line(f"{home} win", int(round(h_pct)), cal_h)
-        + _cal_line("Draw",         int(round(d_pct)), cal_d, "draws", "non-draws")
-        + _cal_line(f"{away} win", int(round(a_pct)), cal_a)
-        + f'</div>'
-    )
+    cal_parts = [s for s in [
+        _cal_inline(home, cal_h),
+        _cal_inline("Draw", cal_d),
+        _cal_inline(away, cal_a),
+    ] if s]
+    cal_block = ""
+    if cal_parts:
+        cal_block = (
+            f'<div style="text-align:center;font-size:11px;color:#8B949E;'
+            f'margin-top:10px;padding-top:8px;border-top:1px solid #21262D;'
+            f'font-style:italic;">'
+            + " &nbsp;·&nbsp; ".join(cal_parts)
+            + ' <span style="color:#586069;">(historical hit rate)</span>'
+            + f'</div>'
+        )
 
     return (
         f'<div style="padding:12px 16px;background:#0E1117;border:1px solid #2D333B;'
@@ -276,18 +305,13 @@ def winprob_bar(r: pd.Series) -> str:
         f'<span style="color:#C9D1D9;font-weight:600;">{a_pct:.0f}%</span> {away}'
         f'</div>'
         f'</div>'
-        # Draw label centered below the bar
+        # Draw % centered below the bar (DRAW segment has no edge label)
         f'<div style="text-align:center;font-size:12px;color:{DRAW};font-weight:700;'
         f'margin-top:6px;">Draw {d_pct:.0f}%</div>'
-        # Most likely / EG / sim count line
+        # MLB-style projected line: "Projected: HOME 1.95 — 1.20 AWAY · Total 3.15 · ..."
         f'<div style="text-align:center;font-size:12px;color:#8B949E;margin-top:8px;">'
-        f'Most likely: <b style="color:#C9D1D9;">{most_likely}</b>'
-        f'{eg_str} &nbsp;·&nbsp; '
-        f'<span title="Number of Monte Carlo trials behind these probabilities">'
-        f'{n_sims:,} sims</span>'
+        f'{projected_line}'
         f'</div>'
-        + (f'<div style="text-align:center;font-size:11px;color:#8B949E;margin-top:2px;font-style:italic;">'
-            f'Top 3: {top3}</div>' if top3 else "")
         + cal_block
         + f'</div>'
     )

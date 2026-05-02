@@ -1,6 +1,7 @@
 """Shared helpers for PITCH Streamlit pages."""
 from __future__ import annotations
 
+import base64
 from pathlib import Path
 from datetime import date as _date, datetime, timedelta, timezone
 
@@ -11,6 +12,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 OUT       = REPO_ROOT / "output"
 TODAY_DIR = OUT / "today_matchups"
 DATA_PROC = REPO_ROOT / "data" / "processed"
+LOGO_DIR  = Path(__file__).resolve().parent / "assets" / "logos"
 
 # Fixed-offset Central — avoids the zoneinfo / tzdata dance on Streamlit Cloud.
 # CT is UTC-5 in DST (most of the soccer season) and UTC-6 in winter; the
@@ -67,25 +69,39 @@ def league_color(code: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Logos
+# Logos — vendored PNGs preferred, API-Sports CDN as fallback
 # ---------------------------------------------------------------------------
+@st.cache_data(show_spinner=False)
+def _logo_b64(team_id: int) -> str | None:
+    """Read a vendored logo PNG and base64-encode it. Cached for the session."""
+    p = LOGO_DIR / f"{int(team_id)}.png"
+    if not p.exists():
+        return None
+    return base64.b64encode(p.read_bytes()).decode("ascii")
+
+
 def team_logo_url(api_id: int | float | None) -> str | None:
-    """API-Sports CDN URL for a team's logo. ~all 1000+ clubs covered."""
+    """Best URL for a team's logo. Prefers vendored PNG (data: URL), falls
+    back to the API-Sports CDN if we don't have it on disk."""
     if api_id is None:
         return None
     try:
         if pd.isna(api_id):
             return None
-        return f"https://media.api-sports.io/football/teams/{int(api_id)}.png"
+        tid = int(api_id)
     except (TypeError, ValueError):
         return None
+    b64 = _logo_b64(tid)
+    if b64:
+        return f"data:image/png;base64,{b64}"
+    return f"https://media.api-sports.io/football/teams/{tid}.png"
 
 
 def logo_img(api_id: int | float | None, width: int = 40) -> str:
     """HTML <img> tag for a team logo. Returns empty string if no id.
 
     Adds a 4-direction white drop-shadow so dark crests stay readable
-    against the team-color tinted gradient header (same trick as MLB).
+    against the team-color tinted gradient header.
     """
     url = team_logo_url(api_id)
     if not url:
@@ -242,8 +258,17 @@ def load_backtest_predictions() -> pd.DataFrame:
 # ---------------------------------------------------------------------------
 # Misc helpers
 # ---------------------------------------------------------------------------
-def calibrate_lookup(cal: pd.DataFrame, market: str, pct: float) -> dict | None:
-    """Nearest calibration row for a given probability + market."""
+def calibrate_lookup(cal: pd.DataFrame, market: str, pct: float,
+                       max_distance: int = 5) -> dict | None:
+    """Calibration row for a given probability + market.
+
+    Looks for the historical bucket nearest to the queried pct, but only
+    returns a row if the bucket is within ``max_distance`` percentage points.
+    This prevents misleading blurbs when the sim is at a probability the
+    historical data has barely seen (e.g., asking for Over 3.5 at sim 85%
+    when the table only has buckets up to ~45%, since real games almost
+    never have such a high Over 3.5 prob).
+    """
     if cal is None or cal.empty:
         return None
     sub = cal[cal["market"] == market]
@@ -253,7 +278,10 @@ def calibrate_lookup(cal: pd.DataFrame, market: str, pct: float) -> dict | None:
     if target in sub["pct"].values:
         return sub[sub["pct"] == target].iloc[0].to_dict()
     diff = (sub["pct"] - target).abs()
-    return sub.loc[diff.idxmin()].to_dict()
+    nearest_idx = diff.idxmin()
+    if int(diff.loc[nearest_idx]) > max_distance:
+        return None
+    return sub.loc[nearest_idx].to_dict()
 
 
 def kalshi_implied(cents) -> float:
