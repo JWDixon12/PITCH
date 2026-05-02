@@ -68,6 +68,118 @@ def league_color(code: str) -> str:
     return LEAGUE_COLORS.get(code, "#5865F2")
 
 
+# Manual abbreviations for the well-known clubs. Falls back to the heuristic
+# in ``team_abbr`` for everything else (still produces a sensible 3-letter
+# code, just not the broadcast-standard one).
+TEAM_ABBR_OVERRIDES = {
+    # Premier League
+    "Arsenal": "ARS", "Aston Villa": "AVL", "Bournemouth": "BOU",
+    "Brentford": "BRE", "Brighton": "BHA", "Burnley": "BUR",
+    "Chelsea": "CHE", "Crystal Palace": "CRY", "Everton": "EVE",
+    "Fulham": "FUL", "Ipswich": "IPS", "Leeds": "LEE",
+    "Leicester": "LEI", "Liverpool": "LIV", "Luton": "LUT",
+    "Manchester City": "MCI", "Manchester United": "MUN",
+    "Newcastle": "NEW", "Nottingham Forest": "NFO", "Sheffield Utd": "SHU",
+    "Southampton": "SOU", "Sunderland": "SUN", "Tottenham": "TOT",
+    "West Ham": "WHU", "Wolves": "WOL",
+    # La Liga
+    "Real Madrid": "RMA", "Barcelona": "BAR", "Atletico Madrid": "ATM",
+    "Athletic Club": "ATH", "Real Sociedad": "RSO", "Real Betis": "BET",
+    "Villarreal": "VIL", "Valencia": "VAL", "Sevilla": "SEV",
+    "Celta Vigo": "CEL", "Osasuna": "OSA", "Mallorca": "MLL",
+    "Girona": "GIR", "Getafe": "GET", "Las Palmas": "LPA",
+    "Rayo Vallecano": "RAY", "Espanyol": "ESP", "Alaves": "ALA",
+    "Levante": "LEV", "Elche": "ELC", "Cadiz": "CAD",
+    "Valladolid": "VLL", "Leganes": "LEG", "Granada": "GRA",
+    "Almeria": "ALM",
+    # Serie A
+    "Juventus": "JUV", "Inter": "INT", "AC Milan": "MIL", "Milan": "MIL",
+    "Napoli": "NAP", "Roma": "ROM", "Lazio": "LAZ",
+    "Atalanta": "ATA", "Fiorentina": "FIO", "Bologna": "BOL",
+    "Torino": "TOR", "Udinese": "UDI", "Sassuolo": "SAS",
+    "Genoa": "GEN", "Lecce": "LEC", "Cagliari": "CAG",
+    "Hellas Verona": "VER", "Verona": "VER", "Empoli": "EMP",
+    "Monza": "MON", "Como": "COM", "Parma": "PAR",
+    "Venezia": "VEN", "Pisa": "PIS", "Cremonese": "CRE",
+    "Salernitana": "SAL", "Frosinone": "FRO",
+    # Bundesliga
+    "Bayern München": "BAY", "Bayern Munich": "BAY",
+    "Borussia Dortmund": "BVB", "RB Leipzig": "RBL",
+    "Bayer Leverkusen": "B04", "Eintracht Frankfurt": "SGE",
+    "VfB Stuttgart": "VFB", "Stuttgart": "VFB",
+    "Borussia Mönchengladbach": "BMG", "Werder Bremen": "BRE",
+    "FC Augsburg": "FCA", "Augsburg": "FCA",
+    "VfL Wolfsburg": "WOB", "Wolfsburg": "WOB",
+    "1. FC Köln": "KOE", "FC Köln": "KOE", "1. FSV Mainz 05": "M05",
+    "Mainz": "M05", "TSG Hoffenheim": "TSG", "Hoffenheim": "TSG",
+    "SC Freiburg": "SCF", "Freiburg": "SCF",
+    "Union Berlin": "FCU", "Hertha Berlin": "BSC",
+    "FC St. Pauli": "STP", "St. Pauli": "STP",
+    "Hamburger SV": "HSV", "Holstein Kiel": "KIE", "Heidenheim": "HEI",
+    "1. FC Heidenheim": "HEI", "VfL Bochum": "BOC", "Bochum": "BOC",
+    "Darmstadt": "SVD",
+    # Ligue 1
+    "Paris Saint Germain": "PSG", "Paris Saint-Germain": "PSG",
+    "Marseille": "OM",  "Lyon": "OL", "Olympique Lyonnais": "OL",
+    "Monaco": "ASM", "AS Monaco": "ASM", "Lille": "LIL",
+    "Nice": "NIC", "Stade Rennais": "REN", "Rennes": "REN",
+    "Lens": "LEN", "Strasbourg": "STR", "Toulouse": "TFC",
+    "Nantes": "FCN", "Reims": "RMS", "Montpellier": "MTP",
+    "Brest": "BRE", "Auxerre": "AUX", "Angers": "SCO",
+    "Le Havre": "HAC", "Saint Etienne": "ASS", "Saint-Etienne": "ASS",
+    "AS Saint-Étienne": "ASS",
+    # MLS (selected)
+    "LAFC": "LAFC", "LA Galaxy": "LAG", "Inter Miami": "MIA",
+    "Atlanta United": "ATL", "Seattle Sounders": "SEA",
+    "Portland Timbers": "POR", "New York Red Bulls": "RBNY",
+    "New York City FC": "NYC", "Toronto FC": "TOR",
+    "Vancouver Whitecaps": "VAN", "Columbus Crew": "CLB",
+    "FC Cincinnati": "CIN", "Philadelphia Union": "PHI",
+    "DC United": "DC", "Orlando City SC": "ORL",
+    "FC Dallas": "DAL", "Houston Dynamo": "HOU",
+    "Real Salt Lake": "RSL", "Sporting Kansas City": "SKC",
+    "Chicago Fire": "CHI", "CF Montreal": "MTL",
+    "Colorado Rapids": "COL", "San Jose Earthquakes": "SJ",
+    "Minnesota United": "MIN", "Nashville SC": "NSH",
+    "Charlotte FC": "CLT", "Austin": "ATX",
+    "St Louis City": "STL", "St. Louis City": "STL",
+    "New England Revolution": "NE",
+}
+
+_STRIP_PREFIXES = ("FC ", "AC ", "AS ", "SC ", "CF ", "RC ", "VfB ", "VfL ",
+                    "TSG ", "RB ", "1. ", "1.", "FSV ", "SV ", "SG ")
+
+
+def team_abbr(name: str | None) -> str:
+    """3-letter team abbreviation. Uses manual map for known clubs, falls back
+    to a heuristic for anything else (good enough for MLS reserve sides /
+    cup minnows / new promoted clubs)."""
+    if not name:
+        return "—"
+    name = str(name).strip()
+    if not name:
+        return "—"
+    if name in TEAM_ABBR_OVERRIDES:
+        return TEAM_ABBR_OVERRIDES[name]
+    # Strip common prefixes
+    s = name
+    for pfx in _STRIP_PREFIXES:
+        if s.startswith(pfx):
+            s = s[len(pfx):]
+            break
+    words = [w for w in s.split() if w]
+    if not words:
+        return name[:3].upper()
+    if len(words) == 1:
+        return words[0][:3].upper()
+    # Multi-word: first letter of each word, max 3 letters
+    abbr = "".join(w[0] for w in words[:3]).upper()
+    if len(abbr) < 3 and len(words[0]) >= 2:
+        # Pad with extra letters from the first word so we always show 3 chars
+        abbr = (abbr + words[0][1:])[:3].upper()
+    return abbr
+
+
 # ---------------------------------------------------------------------------
 # Logos — vendored PNGs preferred, API-Sports CDN as fallback
 # ---------------------------------------------------------------------------

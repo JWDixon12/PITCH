@@ -92,14 +92,8 @@ with c4:
 
 st.markdown("### Where to start")
 st.markdown(
-    """
-- **⚽ Today's Slate** — every game today with calibrated probabilities, expected scoreline, totals, BTTS, and Kalshi market edges.
-- **📊 Calibration** — when the sim says X%, what actually happens? Per-market calibration tables from a 13.7K-match backtest.
-- **🎯 Picks Tracker** — every pick we've ever made vs Kalshi, with lifetime ROI and per-market hit rate.
-- **🔍 Match Explorer** — pick any team, opponent, and date — get the same prediction we'd have made that day.
-- **📈 Backtest** — the headline numbers behind the model.
-- **📖 How It Works** — methodology in plain English.
-    """
+    "- **⚽ Today's Slate** — every game today with calibrated probabilities, "
+    "expected scoreline, totals, BTTS, and Kalshi market edges."
 )
 
 st.divider()

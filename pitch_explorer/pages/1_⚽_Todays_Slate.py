@@ -14,7 +14,8 @@ from utils import (
     CT, available_dates, calibrate_lookup, cents_to_american, edge_html,
     inject_global_css, league_color, league_label, kalshi_implied,
     load_calibration_btts, load_calibration_ml, load_calibration_total,
-    load_kalshi, load_slate, load_today_fixtures, logo_img, today_ct_date,
+    load_kalshi, load_slate, load_today_fixtures, logo_img, team_abbr,
+    today_ct_date,
 )
 
 st.set_page_config(page_title="Today's Slate · PITCH", page_icon="⚽", layout="wide")
@@ -261,8 +262,13 @@ def winprob_bar(r: pd.Series) -> str:
         parts.append(f'Total <b style="color:#C9D1D9;">{float(eg_total):.2f}</b>')
     if most_likely and most_likely != "—":
         ml_title = f'Top 3 scorelines: {top3}' if top3 else most_likely
-        parts.append(f'Most likely <b style="color:#C9D1D9;" '
-                     f'title="{ml_title}">{most_likely}</b>')
+        # "VIL 2 - 0 LEV" style — pad spaces around the score for readability
+        score_str = str(most_likely).replace("-", " - ")
+        ml_label  = f"{team_abbr(home)} {score_str} {team_abbr(away)}"
+        parts.append(
+            f'Most likely <b style="color:#C9D1D9;" '
+            f'title="{ml_title}">{ml_label}</b>'
+        )
     parts.append(f'<span style="font-style:italic;color:#586069;">'
                  f'{n_sims:,} sims</span>')
     projected_line = " &nbsp;·&nbsp; ".join(parts)
@@ -319,12 +325,12 @@ def winprob_bar(r: pd.Series) -> str:
 
 def _mini_cal_pill(cal: dict | None,
                     yes_word: str = "hits", no_word: str = "misses") -> str:
-    """Tiny calibration blurb that fits inside a totals/props cell."""
+    """Calibration blurb sized for the totals/props tiles."""
     if not cal or int(cal.get("n_games", 0)) < 10:
         return ""
     return (
-        f'<div style="font-size:10px;color:#8B949E;font-style:italic;margin-top:4px;'
-        f'line-height:1.3;" title="Historical calibration, ±2.5% local window.">'
+        f'<div style="font-size:11px;color:#8B949E;font-style:italic;margin-top:8px;'
+        f'line-height:1.4;" title="Historical calibration, ±2.5% local window.">'
         f'sim {int(cal["pct"])}% &rarr; <b style="color:#C9D1D9;">'
         f'{int(cal["wins"])}-{int(cal["losses"])} ({cal["actual_rate"]*100:.1f}%)</b><br/>'
         f'over {int(cal["n_games"]):,} games'
@@ -352,24 +358,36 @@ def secondary_markets(r: pd.Series) -> str:
               hint: str = "") -> str:
         cal_html = _mini_cal_pill(cal)
         return (
-            f'<div style="flex:1;min-width:130px;padding:8px;background:#161B22;'
-            f'border:1px solid #2D333B;border-radius:6px;text-align:center;">'
-            f'<div style="font-size:10px;color:#8B949E;text-transform:uppercase;letter-spacing:0.06em;">'
+            f'<div style="flex:1;min-width:160px;min-height:140px;'
+            f'padding:14px 12px;background:#161B22;border:1px solid #2D333B;'
+            f'border-radius:8px;text-align:center;display:flex;'
+            f'flex-direction:column;align-items:center;">'
+            f'<div style="font-size:12px;color:#8B949E;text-transform:uppercase;'
+            f'letter-spacing:0.08em;font-weight:600;">'
             f'{label}</div>'
-            f'<div style="font-size:18px;font-weight:700;color:#C9D1D9;">{value_pct*100:.0f}%</div>'
-            + (f'<div style="font-size:10px;color:#586069;">{hint}</div>' if hint else "")
+            f'<div style="font-size:30px;font-weight:800;color:#F0F6FC;'
+            f'margin-top:4px;line-height:1.1;">'
+            f'{value_pct*100:.0f}%</div>'
+            + (f'<div style="font-size:11px;color:#586069;margin-top:2px;">'
+                f'{hint}</div>' if hint else "")
             + cal_html
             + f'</div>'
         )
 
     def plain_cell(label: str, value_pct: float, hint: str = "") -> str:
         return (
-            f'<div style="flex:1;min-width:130px;padding:8px;background:#161B22;'
-            f'border:1px solid #2D333B;border-radius:6px;text-align:center;">'
-            f'<div style="font-size:10px;color:#8B949E;text-transform:uppercase;letter-spacing:0.06em;">'
+            f'<div style="flex:1;min-width:160px;min-height:140px;'
+            f'padding:14px 12px;background:#161B22;border:1px solid #2D333B;'
+            f'border-radius:8px;text-align:center;display:flex;'
+            f'flex-direction:column;align-items:center;justify-content:center;">'
+            f'<div style="font-size:12px;color:#8B949E;text-transform:uppercase;'
+            f'letter-spacing:0.08em;font-weight:600;">'
             f'{label}</div>'
-            f'<div style="font-size:18px;font-weight:700;color:#C9D1D9;">{value_pct*100:.0f}%</div>'
-            + (f'<div style="font-size:10px;color:#586069;">{hint}</div>' if hint else "")
+            f'<div style="font-size:30px;font-weight:800;color:#F0F6FC;'
+            f'margin-top:4px;line-height:1.1;">'
+            f'{value_pct*100:.0f}%</div>'
+            + (f'<div style="font-size:11px;color:#586069;margin-top:2px;">'
+                f'{hint}</div>' if hint else "")
             + f'</div>'
         )
 
