@@ -18,12 +18,55 @@ from utils import (
     today_ct_date,
 )
 
-st.set_page_config(page_title="Today's Slate · PITCH", page_icon="⚽", layout="wide")
+st.set_page_config(
+    page_title="Today's Slate · PITCH",
+    page_icon="⚽",
+    layout="wide",
+    initial_sidebar_state="collapsed",
+)
 inject_global_css()
+
+# ---- Hide the sidebar entirely + sticky top toolbar -------------------------
+st.markdown(
+    """
+    <style>
+      /* Kill the sidebar and its toggle so the page is full-width */
+      [data-testid="stSidebar"]            { display: none !important; }
+      [data-testid="collapsedControl"]     { display: none !important; }
+      [data-testid="stSidebarCollapsedControl"] { display: none !important; }
+      /* Pin the first horizontal block (our toolbar) to the top of the viewport,
+         just below Streamlit's own top header. */
+      [data-testid="stMain"] .block-container
+        > [data-testid="stVerticalBlock"]
+        > [data-testid="stHorizontalBlock"]:first-of-type {
+          position: sticky;
+          top: 2.5rem;
+          z-index: 50;
+          background: #0E1117;
+          padding: 0.6rem 0.75rem;
+          margin: -0.6rem -0.75rem 0 -0.75rem;
+          border-bottom: 1px solid #1F2933;
+          backdrop-filter: blur(6px);
+      }
+      /* Tighten widget labels in the toolbar */
+      [data-testid="stMain"] .block-container
+        > [data-testid="stVerticalBlock"]
+        > [data-testid="stHorizontalBlock"]:first-of-type label {
+          font-size: 11px !important;
+          color: #8B949E !important;
+          text-transform: uppercase;
+          letter-spacing: 0.06em;
+      }
+      /* Compact selectbox / multiselect so they fit in the toolbar nicely */
+      .block-container { padding-top: 1.2rem !important; }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
 
 # ---------------------------------------------------------------------------
-# Date picker + data load
+# Top toolbar — Slate date + Leagues, frozen at the top
 # ---------------------------------------------------------------------------
 dates = available_dates()
 default = today_ct_date().isoformat()
@@ -32,32 +75,28 @@ if default not in dates and dates:
 elif not dates:
     dates = [default]
 
-date_str = st.sidebar.selectbox("Slate date", dates,
-                                 index=dates.index(default) if default in dates else 0)
-
-st.markdown(
-    f"""<div class="hero">
-    <div class="hero-title">⚽ Today's Slate</div>
-    <div class="hero-subtitle">{date_str} — calibrated sim probabilities + live Kalshi prices.</div>
-    </div>""",
-    unsafe_allow_html=True,
+# Two columns: date on the left, leagues filling the rest
+tb_date, tb_leagues = st.columns([1, 3])
+date_str = tb_date.selectbox(
+    "Slate date", dates,
+    index=dates.index(default) if default in dates else 0,
 )
 
-sim      = load_slate(date_str)
-kalshi   = load_kalshi(date_str)
-fixtures = load_today_fixtures()
+# Need to load the slate before we know which leagues to offer in the multiselect.
+sim       = load_slate(date_str)
+kalshi    = load_kalshi(date_str)
+fixtures  = load_today_fixtures()
 cal_ml    = load_calibration_ml()
 cal_total = load_calibration_total()
 cal_btts  = load_calibration_btts()
 
 if sim.empty:
+    tb_leagues.empty()
     st.warning(f"No matches in slate for {date_str}.")
     st.stop()
 
-
-# ---------------------------------------------------------------------------
-# Merge fixtures (logos, venue) and Kalshi
-# ---------------------------------------------------------------------------
+# Merge fixtures (logos, venue) and Kalshi *before* building the league list,
+# so the multiselect reflects only leagues actually present today.
 if not fixtures.empty:
     fix_cols = ["fixture_id", "home_api_id", "away_api_id",
                  "venue", "city", "round", "status"]
@@ -66,43 +105,31 @@ if not fixtures.empty:
 if not kalshi.empty:
     sim = sim.merge(kalshi, on="fixture_id", how="left")
 
-
-# ---------------------------------------------------------------------------
-# League filter
-# ---------------------------------------------------------------------------
 leagues_in_slate = sorted(sim["league_code"].unique())
-selected = st.sidebar.multiselect(
+selected = tb_leagues.multiselect(
     "Leagues", leagues_in_slate, default=leagues_in_slate,
     format_func=league_label,
+    placeholder="Show all leagues",
 )
 sim = sim[sim["league_code"].isin(selected)] if selected else sim
 sim = sim.sort_values("kickoff").reset_index(drop=True)
 
+
+# ---------------------------------------------------------------------------
+# Hero
+# ---------------------------------------------------------------------------
 n_total = len(sim)
 n_with_market = int(sim["yes_home_cents"].notna().sum()) if "yes_home_cents" in sim.columns else 0
-
-c1, c2, c3 = st.columns(3)
-c1.markdown(
-    f'<div class="stat-card"><div class="stat-label">Matches</div>'
-    f'<div class="stat-value">{n_total}</div>'
-    f'<div class="stat-caption">on the slate</div></div>',
-    unsafe_allow_html=True,
-)
-c2.markdown(
-    f'<div class="stat-card"><div class="stat-label">Kalshi markets</div>'
-    f'<div class="stat-value">{n_with_market}</div>'
-    f'<div class="stat-caption">of {n_total} games</div></div>',
-    unsafe_allow_html=True,
-)
 n_leagues = sim["league_code"].nunique()
-c3.markdown(
-    f'<div class="stat-card"><div class="stat-label">Leagues</div>'
-    f'<div class="stat-value">{n_leagues}</div>'
-    f'<div class="stat-caption">in current view</div></div>',
+
+st.markdown(
+    f"""<div class="hero">
+    <div class="hero-title">⚽ Today's Slate</div>
+    <div class="hero-subtitle">{date_str} — {n_total} matches across {n_leagues} leagues, """
+    f"""{n_with_market} with live Kalshi markets.</div>
+    </div>""",
     unsafe_allow_html=True,
 )
-
-st.markdown("---")
 
 
 # ---------------------------------------------------------------------------
@@ -325,15 +352,22 @@ def winprob_bar(r: pd.Series) -> str:
 
 def _mini_cal_pill(cal: dict | None,
                     yes_word: str = "hits", no_word: str = "misses") -> str:
-    """Calibration blurb sized for the totals/props tiles."""
+    """Calibration blurb sized for the totals/props tiles.
+
+    Reads as a sentence: "When the sim says 82%, this has gone 3,474-771 (81.8%)
+    over 4,245 games."
+    """
     if not cal or int(cal.get("n_games", 0)) < 10:
         return ""
     return (
-        f'<div style="font-size:11px;color:#8B949E;font-style:italic;margin-top:8px;'
-        f'line-height:1.4;" title="Historical calibration, ±2.5% local window.">'
-        f'sim {int(cal["pct"])}% &rarr; <b style="color:#C9D1D9;">'
-        f'{int(cal["wins"])}-{int(cal["losses"])} ({cal["actual_rate"]*100:.1f}%)</b><br/>'
-        f'over {int(cal["n_games"]):,} games'
+        f'<div style="font-size:13px;color:#8B949E;line-height:1.5;'
+        f'margin-top:12px;text-align:center;" '
+        f'title="Historical calibration, ±2.5% local window across the 13.7K-match backtest.">'
+        f'When the sim says <b style="color:#C9D1D9;">{int(cal["pct"])}%</b>, '
+        f'this has gone <b style="color:#F0F6FC;">'
+        f'{int(cal["wins"]):,}-{int(cal["losses"]):,} '
+        f'({cal["actual_rate"]*100:.1f}%)</b><br/>'
+        f'over <b style="color:#C9D1D9;">{int(cal["n_games"]):,}</b> games'
         f'</div>'
     )
 
@@ -358,17 +392,17 @@ def secondary_markets(r: pd.Series) -> str:
               hint: str = "") -> str:
         cal_html = _mini_cal_pill(cal)
         return (
-            f'<div style="flex:1;min-width:160px;min-height:140px;'
-            f'padding:14px 12px;background:#161B22;border:1px solid #2D333B;'
-            f'border-radius:8px;text-align:center;display:flex;'
+            f'<div style="flex:1 1 220px;min-width:220px;min-height:180px;'
+            f'padding:18px 16px;background:#161B22;border:1px solid #2D333B;'
+            f'border-radius:10px;text-align:center;display:flex;'
             f'flex-direction:column;align-items:center;">'
-            f'<div style="font-size:12px;color:#8B949E;text-transform:uppercase;'
+            f'<div style="font-size:13px;color:#8B949E;text-transform:uppercase;'
             f'letter-spacing:0.08em;font-weight:600;">'
             f'{label}</div>'
-            f'<div style="font-size:30px;font-weight:800;color:#F0F6FC;'
-            f'margin-top:4px;line-height:1.1;">'
+            f'<div style="font-size:40px;font-weight:800;color:#F0F6FC;'
+            f'margin-top:6px;line-height:1.1;">'
             f'{value_pct*100:.0f}%</div>'
-            + (f'<div style="font-size:11px;color:#586069;margin-top:2px;">'
+            + (f'<div style="font-size:12px;color:#586069;margin-top:3px;">'
                 f'{hint}</div>' if hint else "")
             + cal_html
             + f'</div>'
@@ -376,17 +410,17 @@ def secondary_markets(r: pd.Series) -> str:
 
     def plain_cell(label: str, value_pct: float, hint: str = "") -> str:
         return (
-            f'<div style="flex:1;min-width:160px;min-height:140px;'
-            f'padding:14px 12px;background:#161B22;border:1px solid #2D333B;'
-            f'border-radius:8px;text-align:center;display:flex;'
+            f'<div style="flex:1 1 220px;min-width:220px;min-height:180px;'
+            f'padding:18px 16px;background:#161B22;border:1px solid #2D333B;'
+            f'border-radius:10px;text-align:center;display:flex;'
             f'flex-direction:column;align-items:center;justify-content:center;">'
-            f'<div style="font-size:12px;color:#8B949E;text-transform:uppercase;'
+            f'<div style="font-size:13px;color:#8B949E;text-transform:uppercase;'
             f'letter-spacing:0.08em;font-weight:600;">'
             f'{label}</div>'
-            f'<div style="font-size:30px;font-weight:800;color:#F0F6FC;'
-            f'margin-top:4px;line-height:1.1;">'
+            f'<div style="font-size:40px;font-weight:800;color:#F0F6FC;'
+            f'margin-top:6px;line-height:1.1;">'
             f'{value_pct*100:.0f}%</div>'
-            + (f'<div style="font-size:11px;color:#586069;margin-top:2px;">'
+            + (f'<div style="font-size:12px;color:#586069;margin-top:3px;">'
                 f'{hint}</div>' if hint else "")
             + f'</div>'
         )
@@ -413,11 +447,13 @@ def _cal_blurb(cal: dict | None, label_yes: str = "wins",
     if not cal:
         return ""
     return (
-        f'<div style="color:#8B949E;font-size:11px;font-style:italic;margin-top:4px;" '
+        f'<div style="color:#8B949E;font-size:12px;margin-top:6px;line-height:1.45;" '
         f'title="From the 13.7K-match calibration table, ±2.5% local window.">'
-        f'When sim says {int(cal["pct"])}%, it has gone '
-        f'{int(cal["wins"])}-{int(cal["losses"])} '
-        f'({cal["actual_rate"]*100:.1f}%) over {int(cal["n_games"]):,} games'
+        f'When the sim says <b style="color:#C9D1D9;">{int(cal["pct"])}%</b>, '
+        f'this has gone <b style="color:#F0F6FC;">'
+        f'{int(cal["wins"]):,}-{int(cal["losses"]):,} '
+        f'({cal["actual_rate"]*100:.1f}%)</b> over '
+        f'<b style="color:#C9D1D9;">{int(cal["n_games"]):,}</b> games'
         f'</div>'
     )
 
