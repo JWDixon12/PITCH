@@ -104,7 +104,7 @@ chances but finishing them poorly gets credited for the underlying play.
 
 ### ⏳ Recent form
 Older matches still feed the model, but their weight decays over time.
-Recent results carry far more weight than a year-old result.
+Recent results carry far more weight than a 2-month-old result.
 """
     )
 
