@@ -1,4 +1,4 @@
-"""How It Works — public-facing methodology overview (no math, no IP)."""
+"""How It Works — public-facing methodology overview."""
 from __future__ import annotations
 
 import sys
@@ -17,7 +17,6 @@ st.set_page_config(
 )
 inject_global_css()
 
-# Hide the sidebar on this page too — same convention as the slate.
 st.markdown(
     """
     <style>
@@ -28,7 +27,6 @@ st.markdown(
           background: rgba(14, 17, 23, 0.85) !important;
           backdrop-filter: blur(6px);
       }
-      /* Top nav link styled like a button */
       [data-testid="stPageLink"] a {
           display: inline-flex; align-items: center; gap: 4px;
           padding: 6px 10px; background: #161B22;
@@ -45,33 +43,28 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Top nav — link back to the slate
 st.page_link("pages/1_⚽_Todays_Slate.py", label="⚽ Back to Today's Slate")
 
 st.markdown(
     """<div class="hero">
     <div class="hero-title">📖 How It Works</div>
-    <div class="hero-subtitle">No black box. Here's what goes into every PITCH prediction — in plain English.</div>
     </div>""",
     unsafe_allow_html=True,
 )
 
 
 # ---------------------------------------------------------------------------
-# 30-second summary
+# Summary
 # ---------------------------------------------------------------------------
-st.markdown("## The 30-second version")
 st.markdown(
     """
-Every soccer match is a contest between attack and defence. PITCH learns each
-team's attacking strength and each team's defensive strength from years of
-results, then layers in **expected goals, market prices, lineups, form, and
-head-to-head history** to refine the picture. The output is a calibrated
-probability for win / draw / loss, the most likely scoreline, and full
-totals + BTTS odds — every match, every day, automatically.
+Every match prediction is built from layered evidence: team strength, recent
+form, expected goals, lineups, head-to-head history, and market prices. PITCH
+combines those signals into a calibrated probability for win, draw, and loss,
+the most likely scoreline, and full totals + BTTS odds.
 
-Then it watches the Kalshi market. When PITCH thinks a team is more likely to
-win than the market does, that's an **edge**, and it gets logged.
+PITCH then compares those probabilities to the live Kalshi market. When PITCH
+rates an outcome higher than the market does, that gap is logged as an edge.
 """
 )
 
@@ -79,46 +72,39 @@ st.divider()
 
 
 # ---------------------------------------------------------------------------
-# What goes in — the data ingredients
+# What goes in
 # ---------------------------------------------------------------------------
 st.markdown("## What goes into a prediction")
-st.markdown(
-    "We don't bet on vibes. Every match prediction is built from layered "
-    "evidence — here's what's actually feeding the model."
-)
 
 c1, c2 = st.columns(2)
 
 with c1:
     st.markdown(
         """
-### ⚽ Team strength (offence × defence)
-For every team across every league we track, PITCH estimates two numbers:
+### ⚽ Team strength
+For every team, PITCH estimates two ratings:
 
-- **How many goals they score** per game vs an average opponent
-- **How many goals they concede** per game vs an average opponent
+- How many goals they score per game vs an average opponent
+- How many goals they concede per game vs an average opponent
 
-These ratings rebuild every morning from the latest results, so a hot streak
-or a defensive collapse moves the needle within days, not months.
+Ratings rebuild every morning from the latest results, so a hot streak or a
+defensive collapse moves them within days.
 
-### 🌍 Cross-league translation
-A 13th-place EPL side meeting 2nd-place Bundesliga is hard for naive models,
-because the two leagues live in different scoring environments. PITCH fits a
-**single global model across all 7 competitions at once**, with a small
-per-league adjustment so attacking and defensive ratings can be compared
-directly across borders. This is what powers the UCL and UEL predictions.
+### 🌍 Cross-league comparison
+A 13th-place EPL side meeting a 2nd-place Bundesliga side is a hard matchup
+to model — the two leagues have different scoring environments. PITCH fits a
+single model across all 7 competitions at once, with a per-league adjustment
+so attacking and defensive ratings translate across borders. This is what
+powers the UCL and UEL predictions.
 
 ### 📈 Expected goals (xG)
-Goals are noisy — a 3-1 win can come from one lucky deflection, or from total
-domination. Expected goals measure **shot quality**, not just outcomes. PITCH
-ingests xG every match so a side that's been creating great chances but
-finishing them poorly gets the credit they deserve.
+Goals alone are noisy. A 3-1 win can come from one deflection or from total
+domination. Expected goals measure shot quality, so a side creating great
+chances but finishing them poorly gets credited for the underlying play.
 
 ### ⏳ Recent form
-Today's Liverpool isn't last season's Liverpool. Older matches still feed the
-model, but their weight decays over time — recent results matter much more
-than a year-old result. The half-life is set so a team's form turning over
-the last 6-8 weeks gets reflected without overreacting to a single bad day.
+Older matches still feed the model, but their weight decays over time.
+Recent results carry far more weight than a year-old result.
 """
     )
 
@@ -126,29 +112,26 @@ with c2:
     st.markdown(
         """
 ### 👥 Lineups & player availability
-Predictions update once probable lineups are released. Missing your top
-striker, your starting keeper, or three first-choice defenders changes the
-math — and PITCH has signals for each (with a "we don't have lineup info
-yet" indicator so we never silently pretend a full-strength side is playing).
+Predictions update once probable lineups are released. A missing top
+striker, starting keeper, or three first-choice defenders changes the math.
+When lineup data isn't available yet, the prediction shows that explicitly
+rather than assume a full-strength team.
 
-### 🧠 Managerial tactics & shape
+### 🧠 Managerial tactics
 Different managers play different football. A team that's just hired a
-high-press tactician is not the same team that played 20 games of low-block
-under the previous regime. We pick this up indirectly: through the live
-ratings shifting after the change, through how chances created and conceded
-move, and through the API-Football tactical predictions we recalibrate
-against.
+high-press coach is not the team that played 20 games of low-block under
+the previous regime. PITCH picks this up through the live ratings shifting
+after a change, through how chances created and conceded move, and through
+the tactical predictions it recalibrates against.
 
 ### 🏆 Head-to-head & venue
-Some matchups defy the rating. Atletico Madrid, at the Metropolitano, against
-a particular opponent style, is its own story. Head-to-head history and home
-advantage are explicit features the model can lean on when they actually
-help — and ignore when they don't.
+Some matchups defy the rating because of stylistic clashes or strong home
+advantage. Head-to-head history and home advantage are explicit features
+the model can use when they help, and ignore when they don't.
 
 ### 💰 Market wisdom
-Closing odds from sharp markets (Pinnacle) are themselves an information
-signal. PITCH doesn't blindly follow the market — but it knows the market is
-right more often than wrong, and weights its own confidence accordingly.
+Closing odds from sharp markets are an information signal in their own
+right. PITCH treats them as one input among many, weighted accordingly.
 """
     )
 
@@ -158,23 +141,21 @@ st.divider()
 # ---------------------------------------------------------------------------
 # How they combine
 # ---------------------------------------------------------------------------
-st.markdown("## How those signals combine")
+st.markdown("## How the signals combine")
 st.markdown(
     """
-None of those signals is perfect on its own. xG is great for chance quality
-but blind to recent injuries. Form is great for the last 8 weeks but doesn't
-know about a manager change three days ago. Market prices are sharp but not
-always right.
+Each signal has blind spots. xG is good at chance quality but blind to a
+manager change. Form captures the last 8 weeks but doesn't know about a
+fresh injury list. Market prices are sharp but not always right.
 
-So PITCH combines them. A small **stacking model** — trained on years of
-historical predictions — learns the right weight for each signal in each
-situation, and produces a single calibrated probability per outcome. When
-xG and the market and recent form all agree, confidence is high. When they
-disagree, the model knows that and pulls the prediction toward neutral.
+PITCH combines all of them. A stacking model trained on years of historical
+predictions learns the right weight for each signal, and outputs a single
+calibrated probability for each outcome. When the signals agree, confidence
+is high. When they disagree, the prediction pulls toward neutral.
 
-The output is what you see on **Today's Slate**: win / draw / loss
-percentages, the most likely scoreline, and the full distribution of totals
-and Both-Teams-To-Score odds.
+The output is what you see on Today's Slate: win, draw, and loss
+probabilities, the most likely scoreline, and the full distribution of
+totals and Both-Teams-To-Score odds.
 """
 )
 
@@ -184,23 +165,20 @@ st.divider()
 # ---------------------------------------------------------------------------
 # Calibration
 # ---------------------------------------------------------------------------
-st.markdown("## How we know it's working")
+st.markdown("## How calibration works")
 st.markdown(
     """
-A model that says **60%** should win 60% of the time. Not 50%, not 70%.
+A model that says 60% should win 60% of the time across many predictions.
 
-To check this honestly, every prediction is logged. Across the **13,708-match
-historical backtest** that PITCH was tuned against, we measure exactly that:
-when the simulator said 60%, how often did the team actually win? When it
-said 75%, how often was it right?
+Across a 13,708-match historical backtest, PITCH measures exactly that. When
+the simulator said 60%, how often did the team win? When it said 75%, how
+often was it right?
 
-Those numbers are what you see in the calibration blurbs on the slate:
+That's what the calibration sentence on each tile reports:
 
-> *When the sim says 65%, this has gone 142-79 (64.3%) over 221 games*
+> When the sim says 65%, this has gone 142-79 (64.3%) over 221 games
 
-It's a direct, evidence-based answer to the question "should I trust this
-percentage?" — not just on win/loss, but on **draws, overs, unders, and BTTS
-markets** too.
+It applies to every market on the slate: win, draw, totals, and BTTS.
 """
 )
 
@@ -210,21 +188,19 @@ st.divider()
 # ---------------------------------------------------------------------------
 # Daily refresh
 # ---------------------------------------------------------------------------
-st.markdown("## How fresh is fresh")
+st.markdown("## Daily refresh")
 st.markdown(
     """
-PITCH refreshes itself completely overnight:
+PITCH refreshes overnight:
 
 1. Pulls the latest results, lineups, injuries, and ratings
-2. Rebuilds team strength estimates with the new data
+2. Rebuilds team strength estimates
 3. Re-validates calibration against the updated backtest
 4. Simulates every game on today's slate (10,000 trials per match)
 5. Pulls live Kalshi prices and computes edges
-6. Grades any picks from yesterday against actual scorelines
+6. Grades yesterday's picks against actual scorelines
 
-By the time you look at the slate, every number on it reflects the most
-recent information available. Live Kalshi prices refresh every 10 minutes
-during match days.
+Live Kalshi prices refresh every 10 minutes during match days.
 """
 )
 
@@ -232,43 +208,23 @@ st.divider()
 
 
 # ---------------------------------------------------------------------------
-# What this is and isn't
+# Scope and disclaimer
 # ---------------------------------------------------------------------------
-st.markdown("## What PITCH is and isn't")
+st.markdown("## Scope")
+st.markdown(
+    """
+PITCH is a research project. Predictions are out-of-sample — every number
+in the historical backtest was generated using only data available before
+each match was played. Calibration, ratings, and the model itself rebuild
+every morning.
 
-c3, c4 = st.columns(2)
-with c3:
-    st.markdown(
-        """
-### ✅ What it is
-- A research project on whether soccer markets can be modelled out-of-sample
-- Calibrated against **13,708 matches** across 7 competitions
-- Fully out-of-sample — every backtest number was generated using only
-  data available *before* each match was played
-- Refreshed every morning, fully automatically
-- Honest about its uncertainty — when calibration is thin or sample size
-  is small, the blurb hides itself rather than mislead
+This is not betting advice. Soccer is variance-heavy and predictions reflect
+the model's estimate given the information available at the time, not a
+certainty.
 """
-    )
-with c4:
-    st.markdown(
-        """
-### ❌ What it isn't
-- **Betting advice.** PITCH is research and analysis; what you do with it is
-  your own decision.
-- A guaranteed money-maker. Pinnacle's closing line is sharper than us in the
-  top-5 leagues — that's expected. The interesting question is the rest of
-  the market.
-- A black box. Every signal listed above feeds the prediction. There's no
-  hidden secret sauce — just disciplined modelling on good data.
-- Static. The model retrains every morning with the freshest results, and the
-  calibration table grows every week.
-"""
-    )
+)
 
-st.divider()
 st.caption(
-    "Soccer is variance-heavy. Predictions reflect the model's best estimate "
-    "given the information available at the time — they are not certainties. "
+    "Calibration and edge numbers update with the daily refresh. "
     "PITCH is research, not betting advice."
 )
