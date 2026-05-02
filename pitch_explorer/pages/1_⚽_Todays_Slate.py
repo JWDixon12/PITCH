@@ -547,19 +547,22 @@ def kalshi_panel(r: pd.Series) -> str:
             cal_html = _cal_blurb(cal)
 
         return (
-            f'<div style="flex:1;min-width:140px;padding:10px;background:#161B22;'
-            f'border:1px solid #2D333B;border-radius:8px;">'
-            f'<div style="font-size:10px;color:#8B949E;text-transform:uppercase;letter-spacing:0.06em;">'
+            f'<div style="flex:1 1 220px;min-width:220px;min-height:180px;'
+            f'padding:18px 16px;background:#161B22;border:1px solid #2D333B;'
+            f'border-radius:10px;display:flex;flex-direction:column;">'
+            f'<div style="font-size:13px;color:#8B949E;text-transform:uppercase;'
+            f'letter-spacing:0.08em;font-weight:600;">'
             f'{label}</div>'
-            f'<div style="display:flex;align-items:baseline;gap:8px;margin-top:2px;">'
-            f'<div style="font-size:22px;font-weight:700;color:{color};">{american}</div>'
-            f'<div style="font-size:11px;color:#8B949E;">{int(round(cents_v*100))}¢</div>'
+            f'<div style="display:flex;align-items:baseline;gap:10px;margin-top:6px;">'
+            f'<div style="font-size:34px;font-weight:800;color:{color};line-height:1;">'
+            f'{american}</div>'
+            f'<div style="font-size:14px;color:#8B949E;">{int(round(cents_v*100))}¢</div>'
             f'</div>'
-            f'<div style="font-size:11px;color:#C9D1D9;margin-top:4px;">'
-            f'<span title="Kalshi YES implied probability">Kalshi {cents_v*100:.0f}%</span>'
-            f' · <span title="Our sim\'s probability">Sim {sim_p*100:.0f}%</span>'
-            f' · {edge_pill}'
+            f'<div style="font-size:14px;color:#C9D1D9;margin-top:10px;line-height:1.5;">'
+            f'<span title="Kalshi YES implied probability">Kalshi <b>{cents_v*100:.0f}%</b></span>'
+            f' &nbsp;·&nbsp; <span title="Our sim\'s probability">Sim <b>{sim_p*100:.0f}%</b></span>'
             f'</div>'
+            f'<div style="font-size:15px;margin-top:6px;">{edge_pill}</div>'
             f'{cal_html}'
             f'</div>'
         )
@@ -590,22 +593,28 @@ def kalshi_panel(r: pd.Series) -> str:
 
     body = "".join(cells)
     return (
-        f'<div style="margin-top:8px;padding:12px 14px;background:#0E1117;'
-        f'border:1px solid #2D333B;border-radius:8px;">'
-        f'<div style="font-size:11px;color:#8B949E;text-transform:uppercase;'
-        f'letter-spacing:0.06em;margin-bottom:8px;">Kalshi markets</div>'
-        f'<div style="display:flex;gap:10px;flex-wrap:wrap;">{body}</div>'
+        f'<div style="margin-top:10px;padding:16px 18px;background:#0E1117;'
+        f'border:1px solid #2D333B;border-radius:10px;">'
+        f'<div style="font-size:13px;color:#8B949E;text-transform:uppercase;'
+        f'letter-spacing:0.08em;font-weight:600;margin-bottom:12px;">Kalshi markets</div>'
+        f'<div style="display:flex;gap:12px;flex-wrap:wrap;">{body}</div>'
         f'</div>'
     )
 
 
 # ---------------------------------------------------------------------------
-# Render — bold divider between games
+# Render — yellow full-width divider between games
 # ---------------------------------------------------------------------------
+# Negative left/right margins extend the rule beyond the .block-container's
+# horizontal padding so the line spans the full viewport width. The 100vw
+# trick in calc() means the rule starts at the very left edge no matter how
+# wide the page.
 GAME_DIVIDER = (
-    '<div style="margin:42px 0 0 0;height:0;'
-    'border-top:3px solid #30363D;'
-    'box-shadow:0 1px 0 #1F2933;"></div>'
+    '<div style="height:5px;'
+    'background:#F0B93C;'
+    'margin:48px calc(50% - 50vw) 28px calc(50% - 50vw);'
+    'width:100vw;'
+    'box-shadow:0 0 12px rgba(240,185,60,0.45);"></div>'
 )
 
 for i, (_, row) in enumerate(sim.iterrows()):

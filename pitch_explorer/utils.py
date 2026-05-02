@@ -422,11 +422,14 @@ def cents_to_american(cents) -> str:
 
 
 def edge_html(edge: float) -> str:
+    """Format an edge percentage as '+X.X% Edge' / '-X.X% Edge' with color."""
     if edge is None or pd.isna(edge):
         return ""
     if edge >= 0:
-        return f'<span class="edge-pos">+{edge*100:.1f}%</span>'
-    return f'<span class="edge-neg">{edge*100:.1f}%</span>'
+        return (f'<span class="edge-pos">+{edge*100:.1f}% '
+                f'<span style="font-weight:600;letter-spacing:0.04em;">Edge</span></span>')
+    return (f'<span class="edge-neg">{edge*100:.1f}% '
+            f'<span style="font-weight:600;letter-spacing:0.04em;">Edge</span></span>')
 
 
 def last_updated_text() -> str:
