@@ -8,11 +8,19 @@ import pandas as pd
 import streamlit as st
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-OUT = REPO_ROOT / "output"
+OUT       = REPO_ROOT / "output"
 TODAY_DIR = OUT / "today_matchups"
+DATA_PROC = REPO_ROOT / "data" / "processed"
 
+# Fixed-offset Central — avoids the zoneinfo / tzdata dance on Streamlit Cloud.
+# CT is UTC-5 in DST (most of the soccer season) and UTC-6 in winter; the
+# slate header just shows times for human reference, so a fixed offset is fine.
 CT = timezone(timedelta(hours=-5))
 
+
+# ---------------------------------------------------------------------------
+# League metadata
+# ---------------------------------------------------------------------------
 LEAGUE_NAMES = {
     "E0":  "Premier League",
     "SP1": "La Liga",
@@ -35,17 +43,88 @@ LEAGUE_FLAGS = {
     "MLS": "🇺🇸",
 }
 
+# Per-league accent colors used for the gradient game header.
+LEAGUE_COLORS = {
+    "E0":  "#3D195B",  # EPL purple
+    "SP1": "#FF4B44",  # LaLiga red
+    "I1":  "#008FD7",  # Serie A blue
+    "D1":  "#D20515",  # Bundesliga red
+    "F1":  "#091C3E",  # Ligue 1 navy
+    "UCL": "#001A4F",  # UCL navy
+    "UEL": "#F7A91E",  # UEL orange
+    "MLS": "#1A3668",  # MLS blue
+}
 
-def today_ct_date() -> _date:
-    return datetime.now(CT).date()
+
+def league_label(code: str) -> str:
+    name = LEAGUE_NAMES.get(code, code)
+    flag = LEAGUE_FLAGS.get(code, "")
+    return f"{flag} {name}".strip()
 
 
+def league_color(code: str) -> str:
+    return LEAGUE_COLORS.get(code, "#5865F2")
+
+
+# ---------------------------------------------------------------------------
+# Logos
+# ---------------------------------------------------------------------------
+def team_logo_url(api_id: int | float | None) -> str | None:
+    """API-Sports CDN URL for a team's logo. ~all 1000+ clubs covered."""
+    if api_id is None:
+        return None
+    try:
+        if pd.isna(api_id):
+            return None
+        return f"https://media.api-sports.io/football/teams/{int(api_id)}.png"
+    except (TypeError, ValueError):
+        return None
+
+
+def logo_img(api_id: int | float | None, width: int = 40) -> str:
+    """HTML <img> tag for a team logo. Returns empty string if no id.
+
+    Adds a 4-direction white drop-shadow so dark crests stay readable
+    against the team-color tinted gradient header (same trick as MLB).
+    """
+    url = team_logo_url(api_id)
+    if not url:
+        return ""
+    glow = (
+        "filter:"
+        " drop-shadow(1px 0 0 rgba(255,255,255,0.65))"
+        " drop-shadow(-1px 0 0 rgba(255,255,255,0.65))"
+        " drop-shadow(0 1px 0 rgba(255,255,255,0.65))"
+        " drop-shadow(0 -1px 0 rgba(255,255,255,0.65));"
+    )
+    style = (
+        f"width:{width}px;height:{width}px;object-fit:contain;"
+        f"vertical-align:middle;{glow}"
+    )
+    return f'<img src="{url}" style="{style}" loading="lazy"/>'
+
+
+# ---------------------------------------------------------------------------
+# CSS
+# ---------------------------------------------------------------------------
 def inject_global_css() -> None:
-    """One-shot global CSS — keep it minimal so it doesn't fight Streamlit's
-    own theme.toml.  All colours come from .streamlit/config.toml."""
     st.markdown(
         """
         <style>
+        :root {
+            --bg-primary: #0E1117;
+            --bg-secondary: #161B22;
+            --bg-card: #11181F;
+            --border: #1F2933;
+            --text-primary: #F0F6FC;
+            --text-secondary: #C9D1D9;
+            --text-muted: #8B949E;
+            --accent: #00C896;
+            --green: #3FB950;
+            --red: #F85149;
+            --amber: #F0B93C;
+        }
+
         .hero {
             padding: 1.4rem 1.6rem 1rem 1.6rem;
             border-radius: 14px;
@@ -67,26 +146,20 @@ def inject_global_css() -> None:
         .stat-value { color: #00C896; font-size: 1.6rem; font-weight: 700; margin-top: 0.2rem; }
         .stat-caption { color: #8B949E; font-size: 0.78rem; margin-top: 0.2rem; }
 
-        .match-card {
-            padding: 1.1rem 1.3rem;
-            border-radius: 12px;
-            background: #11181F;
-            border: 1px solid #1F2933;
-            margin-bottom: 0.9rem;
-        }
-        .match-meta { color: #8B949E; font-size: 0.85rem; margin-bottom: 0.4rem; }
-        .match-title { color: #F0F6FC; font-size: 1.15rem; font-weight: 600; }
-        .prob-h { color: #58A6FF; font-weight: 700; }
-        .prob-d { color: #C9D1D9; }
-        .prob-a { color: #FF7B72; font-weight: 700; }
         .edge-pos { color: #3FB950; font-weight: 700; }
         .edge-neg { color: #F85149; }
-
         .calib-row { color: #8B949E; font-size: 0.85rem; margin-top: 0.3rem; font-style: italic; }
         </style>
         """,
         unsafe_allow_html=True,
     )
+
+
+# ---------------------------------------------------------------------------
+# Data loaders (cached)
+# ---------------------------------------------------------------------------
+def today_ct_date() -> _date:
+    return datetime.now(CT).date()
 
 
 @st.cache_data(ttl=300)
@@ -108,6 +181,15 @@ def load_slate(date_str: str) -> pd.DataFrame:
 @st.cache_data(ttl=120)
 def load_kalshi(date_str: str) -> pd.DataFrame:
     p = TODAY_DIR / date_str / "kalshi_markets.parquet"
+    if not p.exists():
+        return pd.DataFrame()
+    return pd.read_parquet(p)
+
+
+@st.cache_data(ttl=300)
+def load_today_fixtures() -> pd.DataFrame:
+    """Per-fixture metadata: API-FB team IDs, venue, city, round, status."""
+    p = DATA_PROC / "today_fixtures.parquet"
     if not p.exists():
         return pd.DataFrame()
     return pd.read_parquet(p)
@@ -157,6 +239,9 @@ def load_backtest_predictions() -> pd.DataFrame:
     return pd.read_parquet(p) if p.exists() else pd.DataFrame()
 
 
+# ---------------------------------------------------------------------------
+# Misc helpers
+# ---------------------------------------------------------------------------
 def calibrate_lookup(cal: pd.DataFrame, market: str, pct: float) -> dict | None:
     """Nearest calibration row for a given probability + market."""
     if cal is None or cal.empty:
@@ -172,7 +257,6 @@ def calibrate_lookup(cal: pd.DataFrame, market: str, pct: float) -> dict | None:
 
 
 def kalshi_implied(cents) -> float:
-    """Convert Kalshi YES price (cents) to implied probability."""
     if cents is None or pd.isna(cents):
         return float("nan")
     try:
@@ -181,21 +265,31 @@ def kalshi_implied(cents) -> float:
         return float("nan")
 
 
+def cents_to_american(cents) -> str:
+    """Cents (1-99) → American odds string. e.g. 45¢ → +122, 60¢ → -150."""
+    if cents is None or pd.isna(cents):
+        return "—"
+    try:
+        c = float(cents)
+    except (TypeError, ValueError):
+        return "—"
+    if not (0 < c < 100):
+        return "—"
+    p = c / 100.0
+    if p >= 0.5:
+        return f"-{round(p / (1 - p) * 100)}"
+    return f"+{round((1 - p) / p * 100)}"
+
+
 def edge_html(edge: float) -> str:
-    """Format an edge as +X.X% or -X.X% with colour class."""
+    if edge is None or pd.isna(edge):
+        return ""
     if edge >= 0:
         return f'<span class="edge-pos">+{edge*100:.1f}%</span>'
     return f'<span class="edge-neg">{edge*100:.1f}%</span>'
 
 
-def league_label(code: str) -> str:
-    name = LEAGUE_NAMES.get(code, code)
-    flag = LEAGUE_FLAGS.get(code, "")
-    return f"{flag} {name}".strip()
-
-
 def last_updated_text() -> str:
-    """Look at the most recent slate dir to estimate the last update."""
     dates = available_dates()
     if not dates:
         return "no data yet"

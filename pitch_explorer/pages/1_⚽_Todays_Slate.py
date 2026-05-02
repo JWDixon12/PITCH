@@ -1,7 +1,8 @@
-"""Today's Slate page — calibrated probabilities + Kalshi edges per match."""
+"""Today's Slate — match cards with logos, win-prob bar, Kalshi market boxes."""
 from __future__ import annotations
 
 import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import numpy as np
@@ -10,10 +11,10 @@ import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from utils import (
-    available_dates, calibrate_lookup, edge_html, inject_global_css,
-    kalshi_implied, league_label,
+    CT, available_dates, calibrate_lookup, cents_to_american, edge_html,
+    inject_global_css, league_color, league_label, kalshi_implied,
     load_calibration_btts, load_calibration_ml, load_calibration_total,
-    load_kalshi, load_slate, today_ct_date,
+    load_kalshi, load_slate, load_today_fixtures, logo_img, today_ct_date,
 )
 
 st.set_page_config(page_title="Today's Slate · PITCH", page_icon="⚽", layout="wide")
@@ -21,7 +22,7 @@ inject_global_css()
 
 
 # ---------------------------------------------------------------------------
-# Date picker
+# Date picker + data load
 # ---------------------------------------------------------------------------
 dates = available_dates()
 default = today_ct_date().isoformat()
@@ -41,25 +42,33 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-
-# ---------------------------------------------------------------------------
-# Load data
-# ---------------------------------------------------------------------------
-sim = load_slate(date_str)
-kalshi = load_kalshi(date_str)
-cal_ml = load_calibration_ml()
+sim      = load_slate(date_str)
+kalshi   = load_kalshi(date_str)
+fixtures = load_today_fixtures()
+cal_ml    = load_calibration_ml()
 cal_total = load_calibration_total()
-cal_btts = load_calibration_btts()
+cal_btts  = load_calibration_btts()
 
 if sim.empty:
     st.warning(f"No matches in slate for {date_str}.")
     st.stop()
 
-# Merge Kalshi (left join on fixture_id)
+
+# ---------------------------------------------------------------------------
+# Merge fixtures (logos, venue) and Kalshi
+# ---------------------------------------------------------------------------
+if not fixtures.empty:
+    fix_cols = ["fixture_id", "home_api_id", "away_api_id",
+                 "venue", "city", "round", "status"]
+    have = [c for c in fix_cols if c in fixtures.columns]
+    sim = sim.merge(fixtures[have], on="fixture_id", how="left")
 if not kalshi.empty:
     sim = sim.merge(kalshi, on="fixture_id", how="left")
 
+
+# ---------------------------------------------------------------------------
 # League filter
+# ---------------------------------------------------------------------------
 leagues_in_slate = sorted(sim["league_code"].unique())
 selected = st.sidebar.multiselect(
     "Leagues", leagues_in_slate, default=leagues_in_slate,
@@ -68,120 +77,422 @@ selected = st.sidebar.multiselect(
 sim = sim[sim["league_code"].isin(selected)] if selected else sim
 sim = sim.sort_values("kickoff").reset_index(drop=True)
 
-st.caption(f"{len(sim)} matches displayed")
+n_total = len(sim)
+n_with_market = int(sim["yes_home_cents"].notna().sum()) if "yes_home_cents" in sim.columns else 0
+
+c1, c2, c3 = st.columns(3)
+c1.markdown(
+    f'<div class="stat-card"><div class="stat-label">Matches</div>'
+    f'<div class="stat-value">{n_total}</div>'
+    f'<div class="stat-caption">on the slate</div></div>',
+    unsafe_allow_html=True,
+)
+c2.markdown(
+    f'<div class="stat-card"><div class="stat-label">Kalshi markets</div>'
+    f'<div class="stat-value">{n_with_market}</div>'
+    f'<div class="stat-caption">of {n_total} games</div></div>',
+    unsafe_allow_html=True,
+)
+n_leagues = sim["league_code"].nunique()
+c3.markdown(
+    f'<div class="stat-card"><div class="stat-label">Leagues</div>'
+    f'<div class="stat-value">{n_leagues}</div>'
+    f'<div class="stat-caption">in current view</div></div>',
+    unsafe_allow_html=True,
+)
+
+st.markdown("---")
 
 
 # ---------------------------------------------------------------------------
-# Match cards
+# Render helpers
 # ---------------------------------------------------------------------------
-def render_match(r: pd.Series):
-    kickoff = pd.Timestamp(r["kickoff"])
-    if kickoff.tzinfo:
-        ko_local = kickoff.tz_convert("US/Central")
+GREEN = "#3FB950"
+RED   = "#F85149"
+GRAY  = "#8B949E"
+DRAW  = "#F0B93C"
+
+
+def fmt_kickoff(ts) -> str:
+    """Local-CT kickoff string. Uses the fixed-offset CT we set in utils."""
+    if ts is None or pd.isna(ts):
+        return "TBD"
+    t = pd.Timestamp(ts)
+    if t.tzinfo is None:
+        t = t.tz_localize("UTC")
+    try:
+        local = t.astimezone(CT)
+    except Exception:
+        local = t
+    return local.strftime("%a %b %d  %I:%M %p CT").lstrip("0")
+
+
+def fmt_status(s) -> str:
+    if s is None or pd.isna(s):
+        return ""
+    s = str(s)
+    if s in ("FT", "AET", "PEN"):
+        return f'<span style="color:#3FB950;font-weight:600;">FINAL</span>'
+    if s in ("1H", "2H", "HT", "ET", "BT", "P"):
+        return f'<span style="color:#F0B93C;font-weight:600;">LIVE · {s}</span>'
+    if s == "NS":
+        return ""
+    if s in ("PST", "CANC", "ABD", "AWD", "WO", "TBD"):
+        return f'<span style="color:#F85149;font-weight:600;">{s}</span>'
+    return f'<span style="color:#8B949E;">{s}</span>'
+
+
+def game_header(r: pd.Series) -> str:
+    lg = r["league_code"]
+    accent = league_color(lg)
+    home = r["home"]; away = r["away"]
+    venue = r.get("venue") or ""
+    city  = r.get("city") or ""
+    rnd   = r.get("round") or ""
+    home_logo = logo_img(r.get("home_api_id"), width=44)
+    away_logo = logo_img(r.get("away_api_id"), width=44)
+
+    venue_line_parts = []
+    if venue:
+        venue_line_parts.append(venue)
+    if city and city not in venue:
+        venue_line_parts.append(city)
+    if rnd:
+        venue_line_parts.append(rnd)
+    venue_line = " · ".join(venue_line_parts)
+
+    status_html = fmt_status(r.get("status"))
+    status_part = f' &nbsp;·&nbsp; {status_html}' if status_html else ""
+
+    return (
+        f'<div style="border-radius:14px;overflow:hidden;margin-top:18px;'
+        f'background:linear-gradient(90deg,{accent}40 0%,#1C2128 50%,{accent}40 100%);'
+        f'border:1px solid #2D333B;">'
+        f'<div style="padding:18px 22px;">'
+        f'<div style="display:flex;justify-content:space-between;align-items:center;'
+        f'flex-wrap:wrap;gap:12px;">'
+        # Left: home @ away with logos
+        f'<div style="font-size:21px;font-weight:700;color:#F0F6FC;">'
+        f'{home_logo}<span style="margin:0 8px;">{home}</span>'
+        f'<span style="color:#8B949E;font-weight:400;">vs</span>'
+        f'<span style="margin:0 8px;">{away}</span>{away_logo}'
+        f'</div>'
+        # Right: time + league
+        f'<div style="text-align:right;">'
+        f'<div style="font-size:13px;color:#C9D1D9;font-weight:600;">'
+        f'{fmt_kickoff(r["kickoff"])}{status_part}</div>'
+        f'<div style="font-size:11px;color:#8B949E;">{league_label(lg)}</div>'
+        f'</div>'
+        f'</div>'
+        + (f'<div style="margin-top:8px;font-size:12px;color:#8B949E;">{venue_line}</div>'
+            if venue_line else "")
+        + f'</div></div>'
+    )
+
+
+def _cal_line(label: str, sim_pct: int, cal: dict | None,
+                yes_word: str = "wins", no_word: str = "losses") -> str:
+    """Single italic calibration line: 'Home (62%) → 142-79 (64.3%) over 221 games'."""
+    if not cal or int(cal.get("n_games", 0)) < 10:
+        return ""
+    return (
+        f'<div style="font-size:11px;color:#8B949E;font-style:italic;margin-top:2px;" '
+        f'title="From the 13.7K-match historical calibration table.">'
+        f'<span style="color:#C9D1D9;">{label}</span> '
+        f'<span style="color:#586069;">(sim {sim_pct}%)</span> &rarr; '
+        f'historically <b style="color:#C9D1D9;">'
+        f'{int(cal["wins"])}-{int(cal["losses"])} ({cal["actual_rate"]*100:.1f}%)</b> '
+        f'over {int(cal["n_games"]):,} games'
+        f'</div>'
+    )
+
+
+def _flip_cal(cal: dict | None) -> dict | None:
+    """Calibration when looking at the OTHER side of a YES/NO market.
+    Sim 60% over → sim 40% under, the bucket's wins/losses flip."""
+    if not cal:
+        return None
+    return {
+        "pct":        100 - int(cal["pct"]),
+        "n_games":    int(cal["n_games"]),
+        "wins":       int(cal["losses"]),  # other side's "wins" are this side's "losses"
+        "losses":     int(cal["wins"]),
+        "actual_rate": 1.0 - float(cal["actual_rate"]),
+    }
+
+
+def winprob_bar(r: pd.Series) -> str:
+    """Three-segment H / D / A win-probability bar + per-side calibration blurbs."""
+    p_h = float(r["p_home_win"])
+    p_d = float(r["p_draw"])
+    p_a = float(r["p_away_win"])
+    home = r["home"]; away = r["away"]
+
+    # Color the favored side green, the underdog red, draw amber.
+    if abs(p_h - p_a) < 0.005:
+        home_color = away_color = GRAY
+    elif p_h > p_a:
+        home_color, away_color = GREEN, RED
     else:
-        ko_local = kickoff
-    time_str = ko_local.strftime("%a %b %d  %I:%M %p CT")
-    p_h, p_d, p_a = float(r["p_home_win"]), float(r["p_draw"]), float(r["p_away_win"])
+        home_color, away_color = RED, GREEN
 
-    with st.container():
-        col1, col2, col3 = st.columns([3, 2, 2])
-        with col1:
-            st.markdown(
-                f"""<div class="match-card">
-                <div class="match-meta">{time_str} · {league_label(r['league_code'])}</div>
-                <div class="match-title">{r['home']} vs {r['away']}</div>
-                <div style="margin-top:0.6rem;">
-                  <span class="prob-h">{r['home']} {p_h*100:.1f}%</span> &nbsp;·&nbsp;
-                  <span class="prob-d">Draw {p_d*100:.1f}%</span> &nbsp;·&nbsp;
-                  <span class="prob-a">{r['away']} {p_a*100:.1f}%</span>
-                </div>
-                <div style="color:#8B949E;font-size:0.85rem;margin-top:0.4rem;">
-                Most likely: <b style="color:#F0F6FC">{r['most_likely_score']}</b>
-                &nbsp;&nbsp; Top: {r['top3_scores']}
-                </div>
-                <div style="color:#8B949E;font-size:0.85rem;margin-top:0.2rem;">
-                Expected goals: {r['lambda_home']:.2f} – {r['lambda_away']:.2f}
-                &nbsp;&nbsp; Total {r['expected_total_goals']:.2f}
-                </div>
-                </div>""",
-                unsafe_allow_html=True,
-            )
+    h_pct = p_h * 100; d_pct = p_d * 100; a_pct = p_a * 100
+    most_likely = r.get("most_likely_score") or "—"
+    eg_h = r.get("lambda_home"); eg_a = r.get("lambda_away")
+    eg_str = ""
+    if eg_h is not None and pd.notna(eg_h) and eg_a is not None and pd.notna(eg_a):
+        eg_str = (f' &nbsp;·&nbsp; <span title="Expected goals (sim)">'
+                  f'EG <b>{float(eg_h):.2f} – {float(eg_a):.2f}</b></span>')
+    n_sims = int(r.get("n_sims") or 0)
+    top3 = r.get("top3_scores") or ""
 
-            # Calibration line
-            cal_lines = []
-            c = calibrate_lookup(cal_ml, "ML_home", p_h)
-            if c is not None and c["n_games"] >= 10:
-                cal_lines.append(
-                    f"Sim {int(c['pct'])}% home → went "
-                    f"<b>{int(c['wins'])}-{int(c['losses'])} ({c['actual_rate']*100:.1f}%)</b> "
-                    f"over {int(c['n_games'])} historical games"
-                )
-            if not cal_total.empty and "Over_2.5" in cal_total["market"].values:
-                c = calibrate_lookup(cal_total, "Over_2.5", float(r["p_o_25"]))
-                if c is not None and c["n_games"] >= 10:
-                    cal_lines.append(
-                        f"Sim {int(c['pct'])}% O2.5 → went "
-                        f"<b>{int(c['wins'])}-{int(c['losses'])} ({c['actual_rate']*100:.1f}%)</b> "
-                        f"over {int(c['n_games'])} games"
-                    )
-            for line in cal_lines:
-                st.markdown(f'<div class="calib-row">{line}</div>',
-                             unsafe_allow_html=True)
+    # Calibration blurbs for H / D / A
+    cal_h = calibrate_lookup(cal_ml, "ML_home", p_h)
+    cal_d = calibrate_lookup(cal_ml, "Draw",    p_d)
+    cal_a = calibrate_lookup(cal_ml, "ML_away", p_a)
+    cal_block = (
+        f'<div style="margin-top:10px;padding-top:8px;border-top:1px solid #21262D;">'
+        + _cal_line(f"{home} win", int(round(h_pct)), cal_h)
+        + _cal_line("Draw",         int(round(d_pct)), cal_d, "draws", "non-draws")
+        + _cal_line(f"{away} win", int(round(a_pct)), cal_a)
+        + f'</div>'
+    )
 
-        with col2:
-            st.markdown("**Totals & props**")
-            st.write(f"Over 1.5: **{r['p_o_15']*100:.1f}%**")
-            st.write(f"Over 2.5: **{r['p_o_25']*100:.1f}%**")
-            st.write(f"Over 3.5: **{r['p_o_35']*100:.1f}%**")
-            st.write(f"BTTS yes: **{r['p_btts']*100:.1f}%**")
-            st.write(f"Home CS: **{r['p_cs_home']*100:.1f}%**  ·  Away CS: **{r['p_cs_away']*100:.1f}%**")
-
-        with col3:
-            kh = kalshi_implied(r.get("yes_home_cents"))
-            kd = kalshi_implied(r.get("yes_draw_cents"))
-            ka = kalshi_implied(r.get("yes_away_cents"))
-            ko_over = kalshi_implied(r.get("yes_over_cents"))
-            kbtts = kalshi_implied(r.get("yes_btts_cents"))
-            line = r.get("total_line")
-
-            if any(np.isfinite(x) for x in [kh, kd, ka, ko_over, kbtts]):
-                st.markdown("**Kalshi**")
-                if np.isfinite(kh):
-                    st.markdown(
-                        f"Home {kh*100:.0f}¢ {edge_html(p_h - kh)}",
-                        unsafe_allow_html=True,
-                    )
-                if np.isfinite(kd):
-                    st.markdown(
-                        f"Draw {kd*100:.0f}¢ {edge_html(p_d - kd)}",
-                        unsafe_allow_html=True,
-                    )
-                if np.isfinite(ka):
-                    st.markdown(
-                        f"Away {ka*100:.0f}¢ {edge_html(p_a - ka)}",
-                        unsafe_allow_html=True,
-                    )
-                if line is not None and pd.notna(line) and np.isfinite(ko_over) and float(line) == 2.5:
-                    st.markdown(
-                        f"O2.5 {ko_over*100:.0f}¢ {edge_html(float(r['p_o_25']) - ko_over)}",
-                        unsafe_allow_html=True,
-                    )
-                if np.isfinite(kbtts):
-                    st.markdown(
-                        f"BTTS {kbtts*100:.0f}¢ {edge_html(float(r['p_btts']) - kbtts)}",
-                        unsafe_allow_html=True,
-                    )
-            else:
-                st.markdown("**Kalshi**")
-                st.caption("No live market for this match.")
+    return (
+        f'<div style="padding:12px 16px;background:#0E1117;border:1px solid #2D333B;'
+        f'border-radius:8px;margin-top:8px;">'
+        # Top: team labels with %
+        f'<div style="display:flex;align-items:center;gap:12px;">'
+        f'<div style="font-size:14px;font-weight:700;color:{home_color};min-width:130px;text-align:right;">'
+        f'{home} <span style="color:#C9D1D9;font-weight:600;">{h_pct:.0f}%</span>'
+        f'</div>'
+        # Three-segment bar
+        f'<div style="flex:1;height:11px;border-radius:6px;background:#21262D;overflow:hidden;display:flex;">'
+        f'<div style="width:{h_pct:.2f}%;background:{home_color};"></div>'
+        f'<div style="width:{d_pct:.2f}%;background:{DRAW};"></div>'
+        f'<div style="width:{a_pct:.2f}%;background:{away_color};"></div>'
+        f'</div>'
+        f'<div style="font-size:14px;font-weight:700;color:{away_color};min-width:130px;text-align:left;">'
+        f'<span style="color:#C9D1D9;font-weight:600;">{a_pct:.0f}%</span> {away}'
+        f'</div>'
+        f'</div>'
+        # Draw label centered below the bar
+        f'<div style="text-align:center;font-size:12px;color:{DRAW};font-weight:700;'
+        f'margin-top:6px;">Draw {d_pct:.0f}%</div>'
+        # Most likely / EG / sim count line
+        f'<div style="text-align:center;font-size:12px;color:#8B949E;margin-top:8px;">'
+        f'Most likely: <b style="color:#C9D1D9;">{most_likely}</b>'
+        f'{eg_str} &nbsp;·&nbsp; '
+        f'<span title="Number of Monte Carlo trials behind these probabilities">'
+        f'{n_sims:,} sims</span>'
+        f'</div>'
+        + (f'<div style="text-align:center;font-size:11px;color:#8B949E;margin-top:2px;font-style:italic;">'
+            f'Top 3: {top3}</div>' if top3 else "")
+        + cal_block
+        + f'</div>'
+    )
 
 
+def _mini_cal_pill(cal: dict | None,
+                    yes_word: str = "hits", no_word: str = "misses") -> str:
+    """Tiny calibration blurb that fits inside a totals/props cell."""
+    if not cal or int(cal.get("n_games", 0)) < 10:
+        return ""
+    return (
+        f'<div style="font-size:10px;color:#8B949E;font-style:italic;margin-top:4px;'
+        f'line-height:1.3;" title="Historical calibration, ±2.5% local window.">'
+        f'sim {int(cal["pct"])}% &rarr; <b style="color:#C9D1D9;">'
+        f'{int(cal["wins"])}-{int(cal["losses"])} ({cal["actual_rate"]*100:.1f}%)</b><br/>'
+        f'over {int(cal["n_games"]):,} games'
+        f'</div>'
+    )
+
+
+def secondary_markets(r: pd.Series) -> str:
+    """Totals + BTTS + clean-sheet probabilities row, each with calibration."""
+    p_o15 = float(r.get("p_o_15") or 0)
+    p_o25 = float(r.get("p_o_25") or 0)
+    p_o35 = float(r.get("p_o_35") or 0)
+    p_btts = float(r.get("p_btts") or 0)
+    p_cs_h = float(r.get("p_cs_home") or 0)
+    p_cs_a = float(r.get("p_cs_away") or 0)
+    eg_total = float(r.get("expected_total_goals") or 0)
+
+    cal_o15_d  = calibrate_lookup(cal_total, "Over_1.5", p_o15)
+    cal_o25_d  = calibrate_lookup(cal_total, "Over_2.5", p_o25)
+    cal_o35_d  = calibrate_lookup(cal_total, "Over_3.5", p_o35)
+    cal_u25_d  = _flip_cal(cal_o25_d)  # Under 2.5 = inverse of Over 2.5
+    cal_btts_d = calibrate_lookup(cal_btts, "BTTS", p_btts)
+
+    def cell(label: str, value_pct: float, cal: dict | None,
+              hint: str = "") -> str:
+        cal_html = _mini_cal_pill(cal)
+        return (
+            f'<div style="flex:1;min-width:130px;padding:8px;background:#161B22;'
+            f'border:1px solid #2D333B;border-radius:6px;text-align:center;">'
+            f'<div style="font-size:10px;color:#8B949E;text-transform:uppercase;letter-spacing:0.06em;">'
+            f'{label}</div>'
+            f'<div style="font-size:18px;font-weight:700;color:#C9D1D9;">{value_pct*100:.0f}%</div>'
+            + (f'<div style="font-size:10px;color:#586069;">{hint}</div>' if hint else "")
+            + cal_html
+            + f'</div>'
+        )
+
+    def plain_cell(label: str, value_pct: float, hint: str = "") -> str:
+        return (
+            f'<div style="flex:1;min-width:130px;padding:8px;background:#161B22;'
+            f'border:1px solid #2D333B;border-radius:6px;text-align:center;">'
+            f'<div style="font-size:10px;color:#8B949E;text-transform:uppercase;letter-spacing:0.06em;">'
+            f'{label}</div>'
+            f'<div style="font-size:18px;font-weight:700;color:#C9D1D9;">{value_pct*100:.0f}%</div>'
+            + (f'<div style="font-size:10px;color:#586069;">{hint}</div>' if hint else "")
+            + f'</div>'
+        )
+
+    return (
+        f'<div style="margin-top:8px;padding:10px 14px;background:#0E1117;'
+        f'border:1px solid #2D333B;border-radius:8px;">'
+        f'<div style="font-size:11px;color:#8B949E;text-transform:uppercase;'
+        f'letter-spacing:0.06em;margin-bottom:8px;">Totals & props</div>'
+        f'<div style="display:flex;gap:8px;flex-wrap:wrap;">'
+        + cell("Over 1.5",  p_o15,         cal_o15_d)
+        + cell("Over 2.5",  p_o25,         cal_o25_d, f"EG {eg_total:.2f}")
+        + cell("Under 2.5", 1.0 - p_o25,   cal_u25_d)
+        + cell("Over 3.5",  p_o35,         cal_o35_d)
+        + cell("BTTS yes",  p_btts,        cal_btts_d)
+        + plain_cell("Home CS", p_cs_h, "clean sheet")
+        + plain_cell("Away CS", p_cs_a, "clean sheet")
+        + f'</div></div>'
+    )
+
+
+def _cal_blurb(cal: dict | None, label_yes: str = "wins",
+                label_no: str = "losses") -> str:
+    if not cal:
+        return ""
+    return (
+        f'<div style="color:#8B949E;font-size:11px;font-style:italic;margin-top:4px;" '
+        f'title="From the 13.7K-match calibration table, ±2.5% local window.">'
+        f'When sim says {int(cal["pct"])}%, it has gone '
+        f'{int(cal["wins"])}-{int(cal["losses"])} '
+        f'({cal["actual_rate"]*100:.1f}%) over {int(cal["n_games"]):,} games'
+        f'</div>'
+    )
+
+
+def kalshi_panel(r: pd.Series) -> str:
+    """Kalshi market boxes — H/D/A + Over (line) + BTTS — with sim/edge/cal."""
+    yes_h = r.get("yes_home_cents")
+    yes_d = r.get("yes_draw_cents")
+    yes_a = r.get("yes_away_cents")
+    yes_o = r.get("yes_over_cents")
+    yes_u = r.get("yes_under_cents")
+    yes_b = r.get("yes_btts_cents")
+    line  = r.get("total_line")
+
+    if not any(pd.notna(x) for x in [yes_h, yes_d, yes_a, yes_o, yes_u, yes_b]):
+        return (
+            '<div style="margin-top:8px;padding:10px 14px;background:#0E1117;'
+            'border:1px solid #2D333B;border-radius:8px;color:#8B949E;'
+            'font-size:12px;text-align:center;">'
+            'Kalshi markets unavailable for this match'
+            '</div>'
+        )
+
+    p_h = float(r["p_home_win"]); p_d = float(r["p_draw"]); p_a = float(r["p_away_win"])
+    p_o25 = float(r.get("p_o_25") or 0)
+    p_btts = float(r.get("p_btts") or 0)
+
+    def market_cell(label: str, cents, sim_p: float, color: str,
+                     cal_market: str | None = None,
+                     cal_table: pd.DataFrame | None = None,
+                     flip_cal_market: str | None = None,
+                     flip_cal_table: pd.DataFrame | None = None) -> str:
+        cents_v = kalshi_implied(cents)
+        if not np.isfinite(cents_v):
+            return ""
+        american = cents_to_american(cents)
+        edge = sim_p - cents_v
+        edge_pill = edge_html(edge)
+
+        cal_html = ""
+        cal = None
+        if cal_market and cal_table is not None and not cal_table.empty:
+            cal = calibrate_lookup(cal_table, cal_market, sim_p)
+        elif flip_cal_market and flip_cal_table is not None and not flip_cal_table.empty:
+            # Look up the OPPOSITE side of a YES/NO market and flip wins/losses
+            cal_other = calibrate_lookup(flip_cal_table, flip_cal_market, 1.0 - sim_p)
+            cal = _flip_cal(cal_other)
+        if cal and int(cal.get("n_games", 0)) >= 10:
+            cal_html = _cal_blurb(cal)
+
+        return (
+            f'<div style="flex:1;min-width:140px;padding:10px;background:#161B22;'
+            f'border:1px solid #2D333B;border-radius:8px;">'
+            f'<div style="font-size:10px;color:#8B949E;text-transform:uppercase;letter-spacing:0.06em;">'
+            f'{label}</div>'
+            f'<div style="display:flex;align-items:baseline;gap:8px;margin-top:2px;">'
+            f'<div style="font-size:22px;font-weight:700;color:{color};">{american}</div>'
+            f'<div style="font-size:11px;color:#8B949E;">{int(round(cents_v*100))}¢</div>'
+            f'</div>'
+            f'<div style="font-size:11px;color:#C9D1D9;margin-top:4px;">'
+            f'<span title="Kalshi YES implied probability">Kalshi {cents_v*100:.0f}%</span>'
+            f' · <span title="Our sim\'s probability">Sim {sim_p*100:.0f}%</span>'
+            f' · {edge_pill}'
+            f'</div>'
+            f'{cal_html}'
+            f'</div>'
+        )
+
+    cells = []
+    if pd.notna(yes_h):
+        cells.append(market_cell(f"{r['home']} ML", yes_h, p_h, "#58A6FF",
+                                  "ML_home", cal_ml))
+    if pd.notna(yes_d):
+        cells.append(market_cell("Draw", yes_d, p_d, DRAW,
+                                  "Draw", cal_ml))
+    if pd.notna(yes_a):
+        cells.append(market_cell(f"{r['away']} ML", yes_a, p_a, "#FF7B72",
+                                  "ML_away", cal_ml))
+    # Total — only render if line is 2.5 (we calibrate against p_o_25 directly)
+    if pd.notna(line) and float(line) == 2.5:
+        if pd.notna(yes_o):
+            cells.append(market_cell(f"Over {line}", yes_o, p_o25, GREEN,
+                                      "Over_2.5", cal_total))
+        if pd.notna(yes_u):
+            cells.append(market_cell(f"Under {line}", yes_u, 1.0 - p_o25, RED,
+                                      None, None,
+                                      flip_cal_market="Over_2.5",
+                                      flip_cal_table=cal_total))
+    if pd.notna(yes_b):
+        cells.append(market_cell("BTTS yes", yes_b, p_btts, "#A371F7",
+                                  "BTTS", cal_btts))
+
+    body = "".join(cells)
+    return (
+        f'<div style="margin-top:8px;padding:12px 14px;background:#0E1117;'
+        f'border:1px solid #2D333B;border-radius:8px;">'
+        f'<div style="font-size:11px;color:#8B949E;text-transform:uppercase;'
+        f'letter-spacing:0.06em;margin-bottom:8px;">Kalshi markets</div>'
+        f'<div style="display:flex;gap:10px;flex-wrap:wrap;">{body}</div>'
+        f'</div>'
+    )
+
+
+# ---------------------------------------------------------------------------
+# Render
+# ---------------------------------------------------------------------------
 for _, row in sim.iterrows():
-    render_match(row)
+    st.markdown(game_header(row), unsafe_allow_html=True)
+    st.markdown(winprob_bar(row),  unsafe_allow_html=True)
+    st.markdown(secondary_markets(row), unsafe_allow_html=True)
+    st.markdown(kalshi_panel(row),   unsafe_allow_html=True)
+    st.markdown(" ")
 
 st.divider()
 st.caption(
     "Edges shown are simulator probability minus Kalshi implied probability. "
     "Positive = sim says more likely than market. "
+    "Calibration blurbs draw on a 13,708-match historical backtest. "
     "PITCH is research; not betting advice."
 )
