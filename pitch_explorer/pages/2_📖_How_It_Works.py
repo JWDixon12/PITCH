@@ -210,21 +210,18 @@ st.divider()
 # ---------------------------------------------------------------------------
 # Scope and disclaimer
 # ---------------------------------------------------------------------------
-st.markdown("## Scope")
+st.markdown("## Validation")
 st.markdown(
     """
-PITCH is a research project. Predictions are out-of-sample — every number
-in the historical backtest was generated using only data available before
-each match was played. Calibration, ratings, and the model itself rebuild
-every morning.
+PITCH has been tested against a **13,708-match historical backtest**. Every
+backtest prediction was generated under live-match conditions — using only
+the information available before kickoff — so the calibration numbers
+reflect real forecasting performance, not curve-fitting after the fact. The
+ratings, calibration table, and model itself retrain every morning on the
+latest results.
 
-This is not betting advice. Soccer is variance-heavy and predictions reflect
-the model's estimate given the information available at the time, not a
-certainty.
+Soccer is variance-heavy. Any single prediction can miss; the model's value
+is in being right on average across hundreds of matches. PITCH is research,
+not betting advice.
 """
-)
-
-st.caption(
-    "Calibration and edge numbers update with the daily refresh. "
-    "PITCH is research, not betting advice."
 )
