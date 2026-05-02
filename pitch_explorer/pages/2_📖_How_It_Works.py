@@ -24,10 +24,29 @@ st.markdown(
       [data-testid="stSidebar"]            { display: none !important; }
       [data-testid="collapsedControl"]     { display: none !important; }
       [data-testid="stSidebarCollapsedControl"] { display: none !important; }
+      [data-testid="stHeader"] {
+          background: rgba(14, 17, 23, 0.85) !important;
+          backdrop-filter: blur(6px);
+      }
+      /* Top nav link styled like a button */
+      [data-testid="stPageLink"] a {
+          display: inline-flex; align-items: center; gap: 4px;
+          padding: 6px 10px; background: #161B22;
+          border: 1px solid #2D333B; border-radius: 6px;
+          font-size: 13px !important; color: #C9D1D9 !important;
+          text-decoration: none;
+      }
+      [data-testid="stPageLink"] a:hover {
+          background: #1F2933; border-color: #00C896;
+          color: #F0F6FC !important;
+      }
     </style>
     """,
     unsafe_allow_html=True,
 )
+
+# Top nav — link back to the slate
+st.page_link("pages/1_⚽_Todays_Slate.py", label="⚽ Back to Today's Slate")
 
 st.markdown(
     """<div class="hero">
