@@ -22,25 +22,27 @@ st.set_page_config(
     page_title="Today's Slate · PITCH",
     page_icon="⚽",
     layout="wide",
-    initial_sidebar_state="collapsed",
+    initial_sidebar_state="expanded",
 )
 inject_global_css()
 
-# ---- Hide the sidebar + position:FIXED top toolbar --------------------------
-# `position: sticky` was being clipped by some Streamlit container ancestor on
-# the deployed build, so the bar scrolled away. `position: fixed` is anchored
-# to the viewport itself and always works. We render an invisible anchor div
-# (.pitch-toolbar-anchor) immediately before the columns, then CSS :has()
-# finds the wrapper containing it and pins the next sibling row.
+# ---- Sticky top toolbar (sidebar handles page navigation) -------------------
+# We force `overflow: visible` on every Streamlit container ancestor so
+# `position: sticky` actually pins instead of being clipped. The toolbar
+# uses an invisible anchor div + :has() so CSS can target it reliably.
 st.markdown(
     """
     <style>
-      /* Kill the sidebar and its toggle so the page is full-width */
-      [data-testid="stSidebar"]            { display: none !important; }
-      [data-testid="collapsedControl"]     { display: none !important; }
-      [data-testid="stSidebarCollapsedControl"] { display: none !important; }
+      /* Make every container in the main scroll chain non-clipping so sticky
+         children pin to the viewport rather than to a hidden parent. */
+      [data-testid="stMain"],
+      [data-testid="stMain"] > div,
+      [data-testid="stMain"] .block-container,
+      [data-testid="stMain"] [data-testid="stVerticalBlock"] {
+          overflow: visible !important;
+      }
 
-      /* Make Streamlit's own header translucent so it meshes with the bar */
+      /* Translucent main header so the sticky toolbar meshes with it */
       [data-testid="stHeader"] {
           background: rgba(14, 17, 23, 0.85) !important;
           backdrop-filter: blur(6px);
@@ -48,30 +50,24 @@ st.markdown(
       }
 
       /* Hide the anchor element completely (CSS hook only) */
-      [data-testid="stElementContainer"]:has(.pitch-toolbar-anchor),
-      [data-testid="stElementContainer"]:has(.pitch-toolbar-spacer) {
+      [data-testid="stElementContainer"]:has(.pitch-toolbar-anchor) {
           height: 0 !important;
           margin: 0 !important;
           padding: 0 !important;
           overflow: hidden !important;
       }
 
-      /* The columns row that comes right after the anchor: pin to top of the
-         viewport. position:fixed always works, regardless of parent overflow. */
+      /* Pin the columns row that comes right after the anchor */
       [data-testid="stElementContainer"]:has(.pitch-toolbar-anchor)
         + [data-testid="stHorizontalBlock"] {
-          position: fixed !important;
+          position: sticky !important;
           top: 3rem;
-          left: 0;
-          right: 0;
           z-index: 100 !important;
           background: #0E1117;
-          padding: 14px 5rem 12px 5rem !important;
-          margin: 0 !important;
+          padding: 14px 1rem 12px 1rem !important;
+          margin: 0 -1rem 1rem -1rem !important;
           border-bottom: 2px solid #1F2933;
           box-shadow: 0 4px 12px rgba(0,0,0,0.4);
-          display: flex !important;
-          align-items: flex-end !important;
       }
 
       /* Tighten widget labels in the toolbar */
@@ -83,32 +79,7 @@ st.markdown(
           letter-spacing: 0.06em;
       }
 
-      /* Push content down so the first row isn't hidden behind the fixed bar */
-      .block-container {
-          padding-top: 7rem !important;
-      }
-
-      /* Page-nav link cells in the toolbar — make them look like buttons */
-      [data-testid="stElementContainer"]:has(.pitch-toolbar-anchor)
-        + [data-testid="stHorizontalBlock"] [data-testid="stPageLink"] a {
-          display: inline-flex;
-          align-items: center;
-          gap: 4px;
-          padding: 6px 10px;
-          background: #161B22;
-          border: 1px solid #2D333B;
-          border-radius: 6px;
-          font-size: 13px !important;
-          color: #C9D1D9 !important;
-          text-decoration: none;
-          white-space: nowrap;
-      }
-      [data-testid="stElementContainer"]:has(.pitch-toolbar-anchor)
-        + [data-testid="stHorizontalBlock"] [data-testid="stPageLink"] a:hover {
-          background: #1F2933;
-          border-color: #00C896;
-          color: #F0F6FC !important;
-      }
+      .block-container { padding-top: 1rem !important; }
     </style>
     """,
     unsafe_allow_html=True,
@@ -167,17 +138,9 @@ selected = tb_leagues.multiselect(
 sim = sim[sim["league_code"].isin(selected)] if selected else sim
 sim = sim.sort_values("kickoff").reset_index(drop=True)
 
-# Right-side nav cell — link to How It Works
+# Third toolbar column intentionally left empty — sidebar now handles page nav.
 with tb_nav:
-    st.markdown(
-        '<div style="font-size:11px;color:#8B949E;text-transform:uppercase;'
-        'letter-spacing:0.06em;margin-bottom:6px;">More</div>',
-        unsafe_allow_html=True,
-    )
-    st.page_link("pages/2_📖_How_It_Works.py", label="📖 How It Works")
-
-# Spacer so the fixed toolbar doesn't overlap the hero below
-st.markdown('<div class="pitch-toolbar-spacer"></div>', unsafe_allow_html=True)
+    st.empty()
 
 
 # ---------------------------------------------------------------------------
