@@ -337,37 +337,54 @@ def winprob_bar(r: pd.Series) -> str:
     cal_block = ""
     if cal_parts:
         cal_block = (
-            f'<div style="text-align:center;font-size:11px;color:#8B949E;'
-            f'margin-top:10px;padding-top:8px;border-top:1px solid #21262D;'
-            f'font-style:italic;">'
+            f'<div style="text-align:center;font-size:13px;color:#8B949E;'
+            f'margin-top:14px;padding-top:12px;border-top:1px solid #21262D;'
+            f'line-height:1.55;">'
             + " &nbsp;·&nbsp; ".join(cal_parts)
-            + ' <span style="color:#586069;">(historical hit rate)</span>'
+            + f' <span style="color:#586069;font-size:12px;">(historical hit rate)</span>'
             + f'</div>'
         )
 
+    # The "Draw X%" label has to land under the *center* of the yellow draw
+    # segment, which lives between the home (h_pct%) and away (a_pct%) segments
+    # of the bar. Center of draw segment = h_pct + d_pct/2, expressed as a
+    # percent of the bar's width. We absolutely position the label inside a
+    # relative-positioned bar wrapper, so it tracks the draw segment exactly
+    # regardless of the surrounding flex widths.
+    draw_center_pct = h_pct + d_pct / 2.0
+
     return (
-        f'<div style="padding:12px 16px;background:#0E1117;border:1px solid #2D333B;'
-        f'border-radius:8px;margin-top:8px;">'
-        # Top: team labels with %
-        f'<div style="display:flex;align-items:center;gap:12px;">'
-        f'<div style="font-size:14px;font-weight:700;color:{home_color};min-width:130px;text-align:right;">'
-        f'{home} <span style="color:#C9D1D9;font-weight:600;">{h_pct:.0f}%</span>'
+        f'<div style="padding:14px 18px 18px 18px;background:#0E1117;'
+        f'border:1px solid #2D333B;border-radius:8px;margin-top:8px;">'
+        # Top: team labels with % + the bar between them
+        f'<div style="display:flex;align-items:center;gap:14px;">'
+        f'<div style="font-size:15px;font-weight:700;color:{home_color};'
+        f'min-width:140px;text-align:right;">'
+        f'{home} <span style="color:#C9D1D9;font-weight:700;">{h_pct:.0f}%</span>'
         f'</div>'
-        # Three-segment bar
-        f'<div style="flex:1;height:11px;border-radius:6px;background:#21262D;overflow:hidden;display:flex;">'
+        # Bar wrapper (relative) -> bar + absolutely-positioned Draw label
+        f'<div style="flex:1;position:relative;padding-bottom:24px;">'
+        f'<div style="height:14px;border-radius:7px;background:#21262D;'
+        f'overflow:hidden;display:flex;">'
         f'<div style="width:{h_pct:.2f}%;background:{home_color};"></div>'
         f'<div style="width:{d_pct:.2f}%;background:{DRAW};"></div>'
         f'<div style="width:{a_pct:.2f}%;background:{away_color};"></div>'
         f'</div>'
-        f'<div style="font-size:14px;font-weight:700;color:{away_color};min-width:130px;text-align:left;">'
-        f'<span style="color:#C9D1D9;font-weight:600;">{a_pct:.0f}%</span> {away}'
+        # Draw % anchored to the center of the yellow segment
+        f'<div style="position:absolute;top:18px;left:{draw_center_pct:.2f}%;'
+        f'transform:translateX(-50%);font-size:13px;color:{DRAW};'
+        f'font-weight:700;white-space:nowrap;">'
+        f'Draw {d_pct:.0f}%'
         f'</div>'
         f'</div>'
-        # Draw % centered below the bar (DRAW segment has no edge label)
-        f'<div style="text-align:center;font-size:12px;color:{DRAW};font-weight:700;'
-        f'margin-top:6px;">Draw {d_pct:.0f}%</div>'
+        f'<div style="font-size:15px;font-weight:700;color:{away_color};'
+        f'min-width:140px;text-align:left;">'
+        f'<span style="color:#C9D1D9;font-weight:700;">{a_pct:.0f}%</span> {away}'
+        f'</div>'
+        f'</div>'
         # MLB-style projected line: "Projected: HOME 1.95 — 1.20 AWAY · Total 3.15 · ..."
-        f'<div style="text-align:center;font-size:12px;color:#8B949E;margin-top:8px;">'
+        f'<div style="text-align:center;font-size:15px;color:#C9D1D9;'
+        f'margin-top:18px;line-height:1.55;">'
         f'{projected_line}'
         f'</div>'
         + cal_block
@@ -583,14 +600,21 @@ def kalshi_panel(r: pd.Series) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Render
+# Render — bold divider between games
 # ---------------------------------------------------------------------------
-for _, row in sim.iterrows():
+GAME_DIVIDER = (
+    '<div style="margin:42px 0 0 0;height:0;'
+    'border-top:3px solid #30363D;'
+    'box-shadow:0 1px 0 #1F2933;"></div>'
+)
+
+for i, (_, row) in enumerate(sim.iterrows()):
+    if i > 0:
+        st.markdown(GAME_DIVIDER, unsafe_allow_html=True)
     st.markdown(game_header(row), unsafe_allow_html=True)
     st.markdown(winprob_bar(row),  unsafe_allow_html=True)
     st.markdown(secondary_markets(row), unsafe_allow_html=True)
     st.markdown(kalshi_panel(row),   unsafe_allow_html=True)
-    st.markdown(" ")
 
 st.divider()
 st.caption(
