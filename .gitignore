@@ -1,0 +1,29 @@
+# PITCH (public Streamlit repo) — keep this clean.
+# Only Streamlit display code + small data parquets get committed.
+
+__pycache__/
+*.pyc
+.venv/
+.env
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Streamlit local cache
+.streamlit/secrets.toml
+
+# Logs
+output/logs/
+
+# Anything from the private model repo accidentally landing here.
+# (Specifically the model code — it should NEVER live in this repo.)
+scrapers/
+pipeline/
+models/
+data/
+config_secrets.py
+docs/

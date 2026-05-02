@@ -1,0 +1,103 @@
+==============================================================================
+UNIFIED MULTI-SEASON BACKTEST — HEADLINE
+==============================================================================
+Total predictions: 13,708
+Date range: 2019-06-25 -> 2025-05-31
+
+--- ALL MATCHES  (n=13,708) ---
+model                                          n    brier  logloss
+  per-league xG-Poisson                     8424   0.6048   1.0208
+  global xG-Poisson + league offsets        9190   0.6010   1.0059
+  API-FB recalibrated (logreg)             13017   0.6227   1.0374
+  Pinnacle closing (de-vigged)             10707   0.5758   0.9690
+  ensemble (global + recal + market)       13708   0.5910   0.9916
+  stacking model (logreg over base + aux)   11260   0.5857   0.9848
+
+--- TOP-5 LEAGUES  (n=10,728) ---
+model                                          n    brier  logloss
+  per-league xG-Poisson                     7479   0.6036   1.0103
+  global xG-Poisson + league offsets        7479   0.6030   1.0089
+  API-FB recalibrated (logreg)             10267   0.6239   1.0394
+  Pinnacle closing (de-vigged)             10707   0.5758   0.9690
+  ensemble (global + recal + market)       10728   0.5878   0.9873
+  stacking model (logreg over base + aux)    9001   0.5831   0.9815
+
+--- UCL + UEL (cross-league test)  (n=2,980) ---
+model                                          n    brier  logloss
+  per-league xG-Poisson                      945   0.6139   1.1034
+  global xG-Poisson + league offsets        1711   0.5924   0.9927
+  API-FB recalibrated (logreg)              2750   0.6181   1.0297
+  Pinnacle closing (de-vigged)                 -        -        -
+  ensemble (global + recal + market)        2980   0.6026   1.0071
+  stacking model (logreg over base + aux)    2259   0.5963   0.9981
+
+--- League: D1  (n=1,848) ---
+model                                          n    brier  logloss
+  per-league xG-Poisson                     1160   0.6182   1.0315
+  global xG-Poisson + league offsets        1160   0.6179   1.0299
+  API-FB recalibrated (logreg)              1769   0.6319   1.0510
+  Pinnacle closing (de-vigged)              1836   0.5814   0.9774
+  ensemble (global + recal + market)        1848   0.5944   0.9967
+  stacking model (logreg over base + aux)    1540   0.5906   0.9924
+
+--- League: E0  (n=2,280) ---
+model                                          n    brier  logloss
+  per-league xG-Poisson                     1640   0.5944   0.9989
+  global xG-Poisson + league offsets        1640   0.5935   0.9962
+  API-FB recalibrated (logreg)              2112   0.6161   1.0285
+  Pinnacle closing (de-vigged)              2280   0.5655   0.9557
+  ensemble (global + recal + market)        2280   0.5769   0.9726
+  stacking model (logreg over base + aux)    1900   0.5730   0.9683
+
+--- League: F1  (n=2,039) ---
+model                                          n    brier  logloss
+  per-league xG-Poisson                     1502   0.6197   1.0358
+  global xG-Poisson + league offsets        1502   0.6165   1.0295
+  API-FB recalibrated (logreg)              1981   0.6359   1.0574
+  Pinnacle closing (de-vigged)              2031   0.5883   0.9867
+  ensemble (global + recal + market)        2039   0.6004   1.0058
+  stacking model (logreg over base + aux)    1760   0.5988   1.0057
+
+--- League: I1  (n=2,281) ---
+model                                          n    brier  logloss
+  per-league xG-Poisson                     1535   0.5998   1.0008
+  global xG-Poisson + league offsets        1535   0.5985   1.0002
+  API-FB recalibrated (logreg)              2163   0.6149   1.0253
+  Pinnacle closing (de-vigged)              2280   0.5698   0.9593
+  ensemble (global + recal + market)        2281   0.5827   0.9790
+  stacking model (logreg over base + aux)    1901   0.5771   0.9692
+
+--- League: SP1  (n=2,280) ---
+model                                          n    brier  logloss
+  per-league xG-Poisson                     1642   0.5915   0.9926
+  global xG-Poisson + league offsets        1642   0.5937   0.9959
+  API-FB recalibrated (logreg)              2242   0.6231   1.0384
+  Pinnacle closing (de-vigged)              2280   0.5766   0.9697
+  ensemble (global + recal + market)        2280   0.5871   0.9862
+  stacking model (logreg over base + aux)    1900   0.5785   0.9755
+
+--- League: UCL  (n=1,313) ---
+model                                          n    brier  logloss
+  per-league xG-Poisson                      488   0.6066   1.1191
+  global xG-Poisson + league offsets         941   0.5616   0.9466
+  API-FB recalibrated (logreg)              1274   0.6107   1.0187
+  Pinnacle closing (de-vigged)                 -        -        -
+  ensemble (global + recal + market)        1313   0.5795   0.9741
+  stacking model (logreg over base + aux)    1103   0.5788   0.9733
+
+--- League: UEL  (n=1,667) ---
+model                                          n    brier  logloss
+  per-league xG-Poisson                      457   0.6218   1.0866
+  global xG-Poisson + league offsets         770   0.6300   1.0490
+  API-FB recalibrated (logreg)              1476   0.6246   1.0392
+  Pinnacle closing (de-vigged)                 -        -        -
+  ensemble (global + recal + market)        1667   0.6207   1.0331
+  stacking model (logreg over base + aux)    1156   0.6130   1.0218
+
+==============================================================================
+ROI vs Pinnacle closing (top-5 only, min_edge=0.02, flat 1u)
+==============================================================================
+  global xG-Poisson                 bets=6784  profit=-602.05  ROI= -8.9%
+  API-FB recalibrated               bets=9498  profit=-821.26  ROI= -8.6%
+  ensemble                          bets=8653  profit=-620.05  ROI= -7.2%
+  stacking model                    bets=7388  profit=-280.86  ROI= -3.8%
