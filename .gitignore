@@ -27,3 +27,10 @@ models/
 data/
 config_secrets.py
 docs/
+
+# Whitelist: small per-day fixture metadata used by the Streamlit slate
+# (logos, venues, kickoffs). Mirrored from the private repo's
+# data/processed/today_fixtures.parquet by daily_auto_update.bat.
+!data/
+!data/processed/
+!data/processed/today_fixtures.parquet
