@@ -32,6 +32,14 @@ LEAGUE_NAMES = {
     "UCL": "Champions League",
     "UEL": "Europa League",
     "MLS": "Major League Soccer",
+    "NL1": "Eredivisie",
+    "PL1": "Primeira Liga",
+    "B1":  "Belgian Pro League",
+    "BR1": "Brasileirão Série A",
+    "AR1": "Primera División",
+    "MX1": "Liga MX",
+    "SA1": "Saudi Pro League",
+    "T1":  "Süper Lig",
 }
 
 LEAGUE_FLAGS = {
@@ -43,6 +51,14 @@ LEAGUE_FLAGS = {
     "UCL": "🏆",
     "UEL": "🥈",
     "MLS": "🇺🇸",
+    "NL1": "🇳🇱",
+    "PL1": "🇵🇹",
+    "B1":  "🇧🇪",
+    "BR1": "🇧🇷",
+    "AR1": "🇦🇷",
+    "MX1": "🇲🇽",
+    "SA1": "🇸🇦",
+    "T1":  "🇹🇷",
 }
 
 # Per-league accent colors used for the gradient game header.
@@ -55,6 +71,14 @@ LEAGUE_COLORS = {
     "UCL": "#001A4F",  # UCL navy
     "UEL": "#F7A91E",  # UEL orange
     "MLS": "#1A3668",  # MLS blue
+    "NL1": "#FF6900",  # Dutch orange
+    "PL1": "#046A38",  # Portuguese green
+    "B1":  "#FAE042",  # Belgian yellow
+    "BR1": "#FEDD00",  # Brazil yellow
+    "AR1": "#74ACDF",  # Argentina light blue
+    "MX1": "#006847",  # Mexico green
+    "SA1": "#006C35",  # Saudi green
+    "T1":  "#E30A17",  # Turkish red
 }
 
 
@@ -144,6 +168,105 @@ TEAM_ABBR_OVERRIDES = {
     "Charlotte FC": "CLT", "Austin": "ATX",
     "St Louis City": "STL", "St. Louis City": "STL",
     "New England Revolution": "NE",
+    # Eredivisie
+    "Ajax": "AJA", "PSV Eindhoven": "PSV", "PSV": "PSV",
+    "Feyenoord": "FEY", "AZ Alkmaar": "AZ", "AZ": "AZ",
+    "FC Twente": "TWE", "Twente": "TWE", "Utrecht": "UTR", "FC Utrecht": "UTR",
+    "Vitesse": "VIT", "Heerenveen": "HEE", "SC Heerenveen": "HEE",
+    "Sparta Rotterdam": "SPA", "Go Ahead Eagles": "GAE",
+    "NEC Nijmegen": "NEC", "NEC": "NEC", "Heracles": "HER",
+    "Heracles Almelo": "HER", "Fortuna Sittard": "FOR",
+    "PEC Zwolle": "ZWO", "Zwolle": "ZWO", "RKC Waalwijk": "RKC",
+    "Almere City": "ALM", "Excelsior": "EXC", "Volendam": "VOL",
+    "Cambuur": "CAM", "Groningen": "GRO", "FC Groningen": "GRO",
+    "Willem II": "WIL", "NAC Breda": "NAC",
+    # Primeira Liga
+    "Porto": "POR", "FC Porto": "POR", "Benfica": "BEN", "SL Benfica": "BEN",
+    "Sporting CP": "SCP", "Sporting": "SCP", "Braga": "BRG", "SC Braga": "BRG",
+    "Vitoria SC": "VSC", "Vitoria Guimaraes": "VGM", "Vitória de Guimarães": "VGM",
+    "Boavista": "BOA", "Famalicao": "FAM", "FC Famalicão": "FAM",
+    "Estoril": "EST", "Estoril Praia": "EST", "Casa Pia": "CAS",
+    "Pacos de Ferreira": "PFE", "Paços de Ferreira": "PFE",
+    "Rio Ave": "RIO", "Gil Vicente": "GIL", "Moreirense": "MOR",
+    "Portimonense": "PMS", "Chaves": "CHV", "Farense": "FAR",
+    "Arouca": "ARO", "Estrela Amadora": "EAM", "AVS": "AVS", "Nacional": "NAC",
+    # Belgian Pro League
+    "Club Brugge": "CLB", "Anderlecht": "AND", "RSC Anderlecht": "AND",
+    "Genk": "GNK", "KRC Genk": "GNK", "Royal Antwerp": "ANT",
+    "Antwerp": "ANT", "Standard Liege": "STD", "Standard Liège": "STD",
+    "Charleroi": "CHA", "Sporting Charleroi": "CHA",
+    "Gent": "GNT", "KAA Gent": "GNT", "Mechelen": "MEC", "KV Mechelen": "MEC",
+    "Cercle Brugge": "CRC", "OH Leuven": "OHL", "Sint-Truiden": "STT",
+    "Westerlo": "WST", "Eupen": "EUP", "Kortrijk": "KOR", "KV Kortrijk": "KOR",
+    "Beerschot VA": "BEE", "Beerschot": "BEE", "Union St Gilloise": "USG",
+    "Union Saint-Gilloise": "USG", "Dender": "DND",
+    # Brazilian Série A
+    "Flamengo": "FLA", "Palmeiras": "PAL", "Atletico-MG": "CAM",
+    "Atlético Mineiro": "CAM", "Sao Paulo": "SAO", "São Paulo": "SAO",
+    "Internacional": "INT", "Gremio": "GRE", "Grêmio": "GRE",
+    "Corinthians": "COR", "Botafogo": "BOT", "Fluminense": "FLU",
+    "Cruzeiro": "CRU", "Vasco DA Gama": "VAS", "Vasco da Gama": "VAS",
+    "Bahia": "BAH", "Athletico-PR": "CAP", "Athletico Paranaense": "CAP",
+    "Bragantino": "RBB", "Red Bull Bragantino": "RBB",
+    "Fortaleza EC": "FOR", "Fortaleza": "FOR", "Ceara": "CEA", "Ceará": "CEA",
+    "Cuiaba": "CUI", "Cuiabá": "CUI", "Goias": "GOI", "Goiás": "GOI",
+    "Coritiba": "CFC", "Juventude": "JUV", "Vitoria": "VIT", "Vitória": "VIT",
+    "America Mineiro": "AMG", "América Mineiro": "AMG", "Mirassol": "MIR",
+    "Atletico Goianiense": "ACG", "Atlético Goianiense": "ACG",
+    "Criciuma": "CRI", "Criciúma": "CRI", "Sport Recife": "SPR",
+    # Argentine Primera
+    "Boca Juniors": "BOC", "River Plate": "RIV", "Racing Club": "RAC",
+    "Independiente": "IND", "San Lorenzo": "SAN", "Estudiantes": "EST",
+    "Estudiantes L.P.": "EST", "Velez Sarsfield": "VLZ", "Vélez Sársfield": "VLZ",
+    "Newell's Old Boys": "NOB", "Newell Old Boys": "NOB",
+    "Lanus": "LAN", "Lanús": "LAN", "Rosario Central": "ROS",
+    "Talleres Cordoba": "TAL", "Talleres Córdoba": "TAL",
+    "Argentinos Juniors": "ARG", "Banfield": "BAN", "Defensa y Justicia": "DJU",
+    "Tigre": "TIG", "Huracan": "HUR", "Huracán": "HUR", "Godoy Cruz": "GOD",
+    "Belgrano": "BEL", "Instituto": "INS", "Atletico Tucuman": "ATU",
+    "Atlético Tucumán": "ATU", "Platense": "PLA", "Sarmiento Junin": "SJU",
+    "Sarmiento Junín": "SJU", "Union Santa Fe": "UNS",
+    "Unión Santa Fe": "UNS", "Riestra": "RIE", "Barracas Central": "BCC",
+    "Central Cordoba SdE": "CCE", "Central Córdoba": "CCE",
+    "Independiente Rivadavia": "IRI",
+    # Liga MX
+    "Club America": "AME", "Club América": "AME", "America": "AME",
+    "Chivas Guadalajara": "CHI", "Guadalajara": "CHI", "Chivas": "CHI",
+    "Monterrey": "MTY", "Tigres UANL": "TIG", "Tigres": "TIG",
+    "Cruz Azul": "CAZ", "Pumas UNAM": "PUM", "UNAM Pumas": "PUM",
+    "Pumas": "PUM", "Toluca": "TOL", "Atlas": "ATL",
+    "Santos Laguna": "SAN", "Pachuca": "PAC", "Leon": "LEO", "León": "LEO",
+    "Necaxa": "NEC", "Tijuana": "TIJ", "Club Tijuana": "TIJ",
+    "Puebla": "PUE", "Queretaro": "QUE", "Querétaro": "QUE",
+    "Mazatlan": "MZT", "Mazatlán": "MZT", "Juarez": "FCJ", "FC Juárez": "FCJ",
+    "San Luis": "ASL", "Atletico San Luis": "ASL",
+    # Saudi Pro League
+    "Al Hilal": "HIL", "Al-Hilal": "HIL", "Al Nassr": "NSR", "Al-Nassr": "NSR",
+    "Al Ittihad": "ITT", "Al-Ittihad": "ITT", "Al Ahli": "AHL", "Al-Ahli": "AHL",
+    "Al Shabab": "SHB", "Al-Shabab": "SHB", "Al Ettifaq": "ETT", "Al-Ettifaq": "ETT",
+    "Al Fateh": "FAT", "Al-Fateh": "FAT", "Al Taawoun": "TAA", "Al-Taawoun": "TAA",
+    "Al Wehda": "WHD", "Al-Wehda": "WHD", "Al Khaleej": "KHA", "Al-Khaleej": "KHA",
+    "Al Raed": "RAE", "Al-Raed": "RAE", "Al Riyadh": "RIY", "Al-Riyadh": "RIY",
+    "Al Tai": "TAI", "Al-Tai": "TAI", "Al Akhdoud": "AKH", "Al-Akhdoud": "AKH",
+    "Al Orobah": "ORB", "Al-Orobah": "ORB", "Damac": "DAM",
+    "Al Qadisiyah": "QAD", "Al-Qadisiyah": "QAD", "Al Fayha": "FAY", "Al-Fayha": "FAY",
+    "Abha": "ABH", "Al Hazem": "HZM", "Al-Hazem": "HZM",
+    "Al Kholood": "KHO", "Al-Kholood": "KHO", "Al Najma": "NJM", "Al-Najma": "NJM",
+    # Turkish Süper Lig
+    "Galatasaray": "GAL", "Fenerbahce": "FEN", "Fenerbahçe": "FEN",
+    "Besiktas": "BJK", "Beşiktaş": "BJK", "Trabzonspor": "TRB",
+    "Basaksehir": "IBB", "Başakşehir": "IBB", "Istanbul Basaksehir": "IBB",
+    "Istanbul Başakşehir": "IBB", "Adana Demirspor": "ADS",
+    "Konyaspor": "KON", "Sivasspor": "SIV", "Antalyaspor": "ANT",
+    "Alanyaspor": "ALA", "Kayserispor": "KAY", "Gaziantep FK": "GAZ",
+    "Gaziantep": "GAZ", "Hatayspor": "HAT", "Kasimpasa": "KAS",
+    "Kasımpaşa": "KAS", "Rizespor": "RIZ", "Caykur Rizespor": "RIZ",
+    "Çaykur Rizespor": "RIZ", "Samsunspor": "SAM", "Eyupspor": "EYP",
+    "Eyüpspor": "EYP", "Bodrum FK": "BOD", "Bodrumspor": "BOD",
+    "Goztepe": "GOZ", "Göztepe": "GOZ", "Pendikspor": "PEN",
+    "Fatih Karagumruk": "KGM", "Fatih Karagümrük": "KGM",
+    "Genclerbirligi": "GEN", "Gençlerbirliği": "GEN", "Ankaragucu": "ANK",
+    "Ankaragücü": "ANK", "Erzurumspor": "ERZ",
 }
 
 _STRIP_PREFIXES = ("FC ", "AC ", "AS ", "SC ", "CF ", "RC ", "VfB ", "VfL ",

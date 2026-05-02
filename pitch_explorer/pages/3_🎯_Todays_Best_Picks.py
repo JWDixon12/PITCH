@@ -283,7 +283,7 @@ table = display[[
 
 st.dataframe(
     table,
-    use_container_width=True,
+    width="stretch",
     hide_index=True,
     column_config={
         "Match":        st.column_config.TextColumn("Match", width="small"),
