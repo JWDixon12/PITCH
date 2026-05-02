@@ -200,13 +200,23 @@ def fmt_status(s) -> str:
     return f'<span style="color:#8B949E;">{s}</span>'
 
 
+def _s(v) -> str:
+    """NaN-safe stringify — pandas NaN is truthy under bool(), so `x or ''`
+    leaves NaN through and `in` checks downstream blow up."""
+    if v is None:
+        return ""
+    if isinstance(v, float) and pd.isna(v):
+        return ""
+    return str(v)
+
+
 def game_header(r: pd.Series) -> str:
     lg = r["league_code"]
     accent = league_color(lg)
     home = r["home"]; away = r["away"]
-    venue = r.get("venue") or ""
-    city  = r.get("city") or ""
-    rnd   = r.get("round") or ""
+    venue = _s(r.get("venue"))
+    city  = _s(r.get("city"))
+    rnd   = _s(r.get("round"))
     home_logo = logo_img(r.get("home_api_id"), width=44)
     away_logo = logo_img(r.get("away_api_id"), width=44)
 
