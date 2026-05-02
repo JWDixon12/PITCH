@@ -27,6 +27,12 @@ st.set_page_config(
 inject_global_css()
 
 # ---- Hide the sidebar entirely + sticky top toolbar -------------------------
+# The sticky CSS uses a hidden anchor div: we render <div class="pitch-toolbar-anchor">
+# right before the columns row, then the CSS uses :has() to find the
+# stElementContainer wrapping it and pins its NEXT sibling (the columns) to
+# the top. This is robust against Streamlit re-renders because the sibling
+# relationship is stable, unlike :first-of-type which depends on what other
+# elements happen to be on the page.
 st.markdown(
     """
     <style>
@@ -34,31 +40,47 @@ st.markdown(
       [data-testid="stSidebar"]            { display: none !important; }
       [data-testid="collapsedControl"]     { display: none !important; }
       [data-testid="stSidebarCollapsedControl"] { display: none !important; }
-      /* Pin the first horizontal block (our toolbar) to the top of the viewport,
-         just below Streamlit's own top header. */
-      [data-testid="stMain"] .block-container
-        > [data-testid="stVerticalBlock"]
-        > [data-testid="stHorizontalBlock"]:first-of-type {
-          position: sticky;
-          top: 2.5rem;
-          z-index: 50;
-          background: #0E1117;
-          padding: 0.6rem 0.75rem;
-          margin: -0.6rem -0.75rem 0 -0.75rem;
-          border-bottom: 1px solid #1F2933;
+
+      /* Make Streamlit's own header transparent enough that our sticky toolbar
+         meshes with it, and keep it on top of everything. */
+      [data-testid="stHeader"] {
+          background: rgba(14, 17, 23, 0.85) !important;
           backdrop-filter: blur(6px);
       }
+
+      /* Hide the anchor element completely (it exists just as a CSS hook). */
+      [data-testid="stElementContainer"]:has(.pitch-toolbar-anchor) {
+          height: 0 !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          overflow: hidden !important;
+      }
+
+      /* Pin the columns row that comes right after the anchor.
+         Sticky relative to its scrollable ancestor (Streamlit's main pane). */
+      [data-testid="stElementContainer"]:has(.pitch-toolbar-anchor)
+        + [data-testid="stHorizontalBlock"] {
+          position: sticky !important;
+          top: 3.25rem;
+          z-index: 100;
+          background: #0E1117;
+          padding: 0.7rem 1rem 0.5rem 1rem;
+          margin: 0 -1rem 1rem -1rem;
+          border-bottom: 1px solid #1F2933;
+          box-shadow: 0 4px 8px rgba(0,0,0,0.35);
+      }
       /* Tighten widget labels in the toolbar */
-      [data-testid="stMain"] .block-container
-        > [data-testid="stVerticalBlock"]
-        > [data-testid="stHorizontalBlock"]:first-of-type label {
+      [data-testid="stElementContainer"]:has(.pitch-toolbar-anchor)
+        + [data-testid="stHorizontalBlock"] label {
           font-size: 11px !important;
           color: #8B949E !important;
           text-transform: uppercase;
           letter-spacing: 0.06em;
       }
-      /* Compact selectbox / multiselect so they fit in the toolbar nicely */
-      .block-container { padding-top: 1.2rem !important; }
+
+      /* Give the page a little extra top padding so the first content row isn't
+         glued to the sticky toolbar's bottom border. */
+      .block-container { padding-top: 1rem !important; }
     </style>
     """,
     unsafe_allow_html=True,
@@ -74,6 +96,9 @@ if default not in dates and dates:
     default = dates[0]
 elif not dates:
     dates = [default]
+
+# Anchor marker — used by CSS :has() to locate the columns row that follows.
+st.markdown('<div class="pitch-toolbar-anchor"></div>', unsafe_allow_html=True)
 
 # Two columns: date on the left, leagues filling the rest
 tb_date, tb_leagues = st.columns([1, 3])
