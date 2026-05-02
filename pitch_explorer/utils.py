@@ -565,3 +565,16 @@ def last_updated_text() -> str:
         ts = datetime.fromtimestamp(sim.stat().st_mtime)
         return f"slate for {dates[0]} (refreshed {ts.strftime('%Y-%m-%d %H:%M')})"
     return f"slate for {dates[0]}"
+
+
+def sim_run_at_ct(date_str: str) -> str:
+    """Human-readable 'Last simulated' for the slate's sim_lines.parquet, in CT.
+
+    Returns an empty string if the file doesn't exist.
+    """
+    sim = TODAY_DIR / date_str / "sim_lines.parquet"
+    if not sim.exists():
+        return ""
+    # mtime is a unix timestamp; treat as UTC then convert to fixed-offset CT
+    ts = datetime.fromtimestamp(sim.stat().st_mtime, tz=timezone.utc).astimezone(CT)
+    return ts.strftime("%b %d, %Y %I:%M %p CT").replace(" 0", " ")

@@ -13,7 +13,8 @@ from utils import (
     available_dates, calibrate_lookup, cents_to_american, edge_html,
     inject_global_css, kalshi_implied, league_label,
     load_calibration_btts, load_calibration_ml, load_calibration_total,
-    load_kalshi, load_slate, load_today_fixtures, team_abbr, today_ct_date,
+    load_kalshi, load_slate, load_today_fixtures, sim_run_at_ct,
+    team_abbr, today_ct_date,
 )
 
 st.set_page_config(
@@ -89,10 +90,13 @@ cal_ml    = load_calibration_ml()
 cal_total = load_calibration_total()
 cal_btts  = load_calibration_btts()
 
+_sim_at = sim_run_at_ct(date_str)
+_sim_suffix = (f' · <span style="color:#8B949E;">Last simulated {_sim_at}</span>'
+               if _sim_at else "")
 st.markdown(
-    """<div class="hero">
+    f"""<div class="hero">
     <div class="hero-title">🎯 Today's Best Picks</div>
-    <div class="hero-subtitle">Every market with positive edge vs Kalshi, sized by the Kelly criterion.</div>
+    <div class="hero-subtitle">Every market with positive edge vs Kalshi, sized by the Kelly criterion.{_sim_suffix}</div>
     </div>""",
     unsafe_allow_html=True,
 )

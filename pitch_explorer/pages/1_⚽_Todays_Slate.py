@@ -14,8 +14,8 @@ from utils import (
     CT, available_dates, calibrate_lookup, cents_to_american, edge_html,
     inject_global_css, league_color, league_label, kalshi_implied,
     load_calibration_btts, load_calibration_ml, load_calibration_total,
-    load_kalshi, load_slate, load_today_fixtures, logo_img, team_abbr,
-    today_ct_date,
+    load_kalshi, load_slate, load_today_fixtures, logo_img, sim_run_at_ct,
+    team_abbr, today_ct_date,
 )
 
 st.set_page_config(
@@ -128,9 +128,21 @@ selected = tb_leagues.multiselect(
 sim = sim[sim["league_code"].isin(selected)] if selected else sim
 sim = sim.sort_values("kickoff").reset_index(drop=True)
 
-# Third toolbar column intentionally left empty — sidebar now handles page nav.
+# Last-simulated timestamp in CT — shows when sim_lines.parquet was last written
 with tb_nav:
-    st.empty()
+    sim_at = sim_run_at_ct(date_str)
+    if sim_at:
+        st.markdown(
+            f"""
+            <div style="text-align:right; padding-top:4px;">
+              <div style="font-size:11px; color:#8B949E; text-transform:uppercase;
+                          letter-spacing:0.06em;">Last simulated</div>
+              <div style="font-size:13px; color:#E6EDF3; font-weight:600;
+                          margin-top:2px;">{sim_at}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
 
 # ---------------------------------------------------------------------------
