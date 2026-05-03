@@ -43,7 +43,11 @@ LEAGUE_NAMES = {
 }
 
 LEAGUE_FLAGS = {
-    "E0":  "🏴󠁧󠁢󠁥󠁮󠁧󠁿",
+    # England regional-subdivision flag emoji renders inconsistently across
+    # platforms (often shows as a plain black flag where the OS doesn't
+    # support the tag sequence). Use the country abbrev instead so it's
+    # readable everywhere.
+    "E0":  "ENG",
     "SP1": "🇪🇸",
     "I1":  "🇮🇹",
     "D1":  "🇩🇪",
