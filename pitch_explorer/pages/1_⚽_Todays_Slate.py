@@ -810,16 +810,25 @@ def kalshi_panel(r: pd.Series) -> str:
     if pd.notna(yes_a):
         cells.append(market_cell(f"{r['away']} ML", yes_a, p_a, "#FF7B72",
                                   "ML_away", cal_ml))
-    # Total — only render if line is 2.5 (we calibrate against p_o_25 directly)
-    if pd.notna(line) and float(line) == 2.5:
-        if pd.notna(yes_o):
-            cells.append(market_cell(f"Over {line}", yes_o, p_o25, GREEN,
-                                      "Over_2.5", cal_total))
-        if pd.notna(yes_u):
-            cells.append(market_cell(f"Under {line}", yes_u, 1.0 - p_o25, RED,
-                                      None, None,
-                                      flip_cal_market="Over_2.5",
-                                      flip_cal_table=cal_total))
+    # Total — always render when both cents exist. Pick the sim's matching
+    # p_o_<line> column and the calibration bucket for whatever line Kalshi
+    # actually posted (we backtested Over 1.5/2.5/3.5; if Kalshi posts 4.5
+    # we fall back to no calibration).
+    if pd.notna(line) and (pd.notna(yes_o) or pd.notna(yes_u)):
+        line_f = float(line)
+        # Half-line (e.g., 2.5) -> sim col 'p_o_25'
+        sim_col = f"p_o_{int(round(line_f * 10)):02d}"
+        sim_p_over = float(r.get(sim_col)) if sim_col in r and pd.notna(r.get(sim_col)) else None
+        cal_market = f"Over_{line_f}"  # 'Over_2.5' etc — matches build_sim_calibration TOTAL_LINES
+        if sim_p_over is not None:
+            if pd.notna(yes_o):
+                cells.append(market_cell(f"Over {line_f}", yes_o, sim_p_over, GREEN,
+                                          cal_market, cal_total))
+            if pd.notna(yes_u):
+                cells.append(market_cell(f"Under {line_f}", yes_u, 1.0 - sim_p_over, RED,
+                                          None, None,
+                                          flip_cal_market=cal_market,
+                                          flip_cal_table=cal_total))
     if pd.notna(yes_b):
         cells.append(market_cell("BTTS yes", yes_b, p_btts, "#A371F7",
                                   "BTTS", cal_btts))
