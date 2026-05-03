@@ -253,37 +253,3 @@ st.markdown(
 scorelines and the running record updates.
 """
 )
-
-st.divider()
-
-
-# ---------------------------------------------------------------------------
-# Validation
-# ---------------------------------------------------------------------------
-st.markdown("## Validation & honest limits")
-st.markdown(
-    """
-The model has been walk-forward backtested across **8 leagues** (EPL, La
-Liga, Bundesliga, Serie A, Ligue 1, Eredivisie, Primeira Liga, MLS) over
-multiple seasons, with the held-out window for each fold simulating
-real pre-kickoff conditions — no leakage from future results.
-
-Coverage caveats worth knowing:
-
-- The international tab is a **schedule view**, not a prediction view. The
-  player-aware club model can't transfer to national teams cleanly — they
-  assemble briefly, manager intent matters more than club form, and the
-  player coefficients we fit on club football aren't the right base. A
-  separate intl model is on the roadmap.
-- Cup competitions where one side is from a tier we don't model (lower
-  divisions, very small leagues) inherit a generic "league-average" prior
-  on the unmodeled side, which adds uncertainty.
-- The model can't see manager **intent** — if a coach plans to rotate
-  heavily and pull stars at halftime, that intent only shows up when the
-  XI is confirmed (rotation alert) or when stars are subbed off in-play.
-
-Soccer is variance-heavy. Any single prediction can miss; the model's value
-is in being right on average across hundreds of matches. PITCH is research,
-not betting advice.
-"""
-)
