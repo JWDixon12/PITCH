@@ -111,21 +111,63 @@ if sim.empty:
 
 # Merge fixtures (logos, venue) and Kalshi *before* building the league list,
 # so the multiselect reflects only leagues actually present today.
+#
+# IMPORTANT: only merge in columns sim doesn't already have. The PA sim
+# parquet already carries home_api_id / away_api_id. If we let pandas merge
+# the duplicates it suffixes to _x/_y, which silently breaks logo_img(...)
+# because r.get("home_api_id") then returns None.
 if not fixtures.empty:
-    fix_cols = ["fixture_id", "home_api_id", "away_api_id",
-                 "venue", "city", "round", "status"]
-    have = [c for c in fix_cols if c in fixtures.columns]
+    candidate_cols = ["fixture_id", "home_api_id", "away_api_id",
+                       "venue", "city", "round", "status"]
+    have = [c for c in candidate_cols if c in fixtures.columns
+              and (c == "fixture_id" or c not in sim.columns)]
     sim = sim.merge(fixtures[have], on="fixture_id", how="left")
 if not kalshi.empty:
     sim = sim.merge(kalshi, on="fixture_id", how="left")
 
 leagues_in_slate = sorted(sim["league_code"].unique())
-selected = tb_leagues.multiselect(
-    "Leagues", leagues_in_slate, default=leagues_in_slate,
-    format_func=league_label,
-    placeholder="Show all leagues",
-)
-sim = sim[sim["league_code"].isin(selected)] if selected else sim
+
+# Per-league checkbox state — defaults to True the first time we see a league.
+# Persisted in session state so toggling one box doesn't reset the others.
+# Keyed per slate-date so flipping dates doesn't carry stale selections.
+def _lg_key(lg: str) -> str:
+    return f"lg_chk__{date_str}__{lg}"
+
+for lg in leagues_in_slate:
+    st.session_state.setdefault(_lg_key(lg), True)
+
+selected = [lg for lg in leagues_in_slate if st.session_state[_lg_key(lg)]]
+
+if len(selected) == len(leagues_in_slate):
+    label = f"All {len(leagues_in_slate)} leagues"
+elif len(selected) == 0:
+    label = "No leagues selected"
+elif len(selected) == 1:
+    label = f"1 league: {league_label(selected[0])}"
+else:
+    label = f"{len(selected)} of {len(leagues_in_slate)} leagues selected"
+
+with tb_leagues.popover(label, use_container_width=True):
+    # Quick toggle row — Select all / Clear all. Buttons set every per-league
+    # key, then st.rerun so the popover label updates immediately.
+    bc1, bc2 = st.columns(2)
+    if bc1.button("Select all", key="lg_select_all", use_container_width=True):
+        for lg in leagues_in_slate:
+            st.session_state[_lg_key(lg)] = True
+        st.rerun()
+    if bc2.button("Clear all",  key="lg_clear_all",  use_container_width=True):
+        for lg in leagues_in_slate:
+            st.session_state[_lg_key(lg)] = False
+        st.rerun()
+
+    st.divider()
+
+    # Vertical list of checkboxes, one per league actually on the slate.
+    for lg in leagues_in_slate:
+        st.checkbox(league_label(lg), key=_lg_key(lg))
+
+selected = [lg for lg in leagues_in_slate if st.session_state[_lg_key(lg)]]
+sim = sim[sim["league_code"].isin(selected)] if selected else sim.iloc[0:0]
 sim = sim.sort_values("kickoff").reset_index(drop=True)
 
 # Last-simulated timestamp in CT — shows when sim_lines.parquet was last written
