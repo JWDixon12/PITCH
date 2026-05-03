@@ -210,6 +210,31 @@ def _s(v) -> str:
     return str(v)
 
 
+def _sim_status_pill(status: str) -> str:
+    """PRELIMINARY (amber) before XI confirmation, FINAL (green) once both
+    sides' lineups are confirmed by API-Football. Empty when missing.
+
+    Tooltip explains the meaning so users hovering the pill understand why
+    a 9 AM-CT view shows mostly preliminary and a noon-CT view shows mostly
+    final for European matches.
+    """
+    s = (str(status) if status else "").lower()
+    if s == "final":
+        bg, fg, label = "#1F4D2A", "#7EE787", "FINAL SIM"
+        tip = "Both starting XIs confirmed by API-Football — this sim uses the actual players starting today."
+    elif s == "preliminary":
+        bg, fg, label = "#4D3A1F", "#F0B93C", "PRELIMINARY"
+        tip = "At least one side's starting XI not yet confirmed. Sim used the projected XI from the last 5 matches and will be re-run automatically once lineups land."
+    else:
+        return ""
+    return (
+        f'<span title="{tip}" style="display:inline-block;padding:3px 9px;'
+        f'border-radius:10px;background:{bg};color:{fg};'
+        f'font-size:10px;font-weight:700;letter-spacing:0.06em;'
+        f'margin-top:4px;">{label}</span>'
+    )
+
+
 def game_header(r: pd.Series) -> str:
     lg = r["league_code"]
     accent = league_color(lg)
@@ -231,6 +256,7 @@ def game_header(r: pd.Series) -> str:
 
     status_html = fmt_status(r.get("status"))
     status_part = f' &nbsp;·&nbsp; {status_html}' if status_html else ""
+    sim_status_html = _sim_status_pill(_s(r.get("sim_status")))
 
     # Logos sit immediately to the left of each team name, mirroring the
     # MLB layout: "[logo] HOME  vs  [logo] AWAY"
@@ -247,14 +273,15 @@ def game_header(r: pd.Series) -> str:
         f'<span style="color:#8B949E;font-weight:400;margin:0 6px;">vs</span>'
         f'{away_logo} <span style="margin:0 6px;">{away}</span>'
         f'</div>'
-        # Right: time, league, status
+        # Right: time, league, status, sim_status pill
         f'<div style="text-align:right;">'
         f'<div style="font-size:14px;color:#C9D1D9;font-weight:600;">'
         f'{fmt_kickoff(r["kickoff"])}</div>'
         + (f'<div style="font-size:12px;margin-top:2px;">{status_html}</div>'
             if status_html else "")
         + f'<div style="font-size:11px;color:#8B949E;margin-top:2px;">{league_label(lg)}</div>'
-        f'</div>'
+        + (f'<div>{sim_status_html}</div>' if sim_status_html else "")
+        + f'</div>'
         f'</div>'
         + (f'<div style="margin-top:10px;font-size:12px;color:#8B949E;">'
             f'🏟️ {venue_line}</div>'
