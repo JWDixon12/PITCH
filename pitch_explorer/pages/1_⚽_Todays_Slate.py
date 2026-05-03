@@ -129,9 +129,10 @@ leagues_in_slate = sorted(sim["league_code"].unique())
 
 # Per-league checkbox state — defaults to True the first time we see a league.
 # Persisted in session state so toggling one box doesn't reset the others.
-# Keyed per slate-date so flipping dates doesn't carry stale selections.
+# Keyed by league only (NOT by date) so flipping dates preserves the user's
+# current selection. New leagues that show up on a later date default to True.
 def _lg_key(lg: str) -> str:
-    return f"lg_chk__{date_str}__{lg}"
+    return f"lg_chk__{lg}"
 
 for lg in leagues_in_slate:
     st.session_state.setdefault(_lg_key(lg), True)
