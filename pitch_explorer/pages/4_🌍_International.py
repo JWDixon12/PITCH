@@ -271,20 +271,20 @@ def _winprob_bar(p_h: float, p_d: float, p_a: float) -> str:
     pct_h = h / total * 100
     pct_d = d / total * 100
     pct_a = a / total * 100
-    return f"""
-    <div style="display:flex;width:100%;height:10px;border-radius:6px;overflow:hidden;
-                margin-top:6px;background:#1F2933;">
-      <div style="width:{pct_h:.1f}%;background:{GREEN};"></div>
-      <div style="width:{pct_d:.1f}%;background:{DRAW};"></div>
-      <div style="width:{pct_a:.1f}%;background:{RED};"></div>
-    </div>
-    <div style="display:flex;justify-content:space-between;font-size:11px;
-                color:#C9D1D9;margin-top:3px;font-weight:600;">
-      <span style="color:{GREEN};">H {pct_h:.0f}%</span>
-      <span style="color:{DRAW};">D {pct_d:.0f}%</span>
-      <span style="color:{RED};">A {pct_a:.0f}%</span>
-    </div>
-    """
+    return (
+        f'<div style="display:flex;width:100%;height:10px;border-radius:6px;'
+        f'overflow:hidden;margin-top:6px;background:#1F2933;">'
+        f'<div style="width:{pct_h:.1f}%;background:{GREEN};"></div>'
+        f'<div style="width:{pct_d:.1f}%;background:{DRAW};"></div>'
+        f'<div style="width:{pct_a:.1f}%;background:{RED};"></div>'
+        f'</div>'
+        f'<div style="display:flex;justify-content:space-between;font-size:11px;'
+        f'color:#C9D1D9;margin-top:3px;font-weight:600;">'
+        f'<span style="color:{GREEN};">H {pct_h:.0f}%</span>'
+        f'<span style="color:{DRAW};">D {pct_d:.0f}%</span>'
+        f'<span style="color:{RED};">A {pct_a:.0f}%</span>'
+        f'</div>'
+    )
 
 
 def _form_pill(n_home: int | float, n_away: int | float) -> str:
@@ -348,59 +348,60 @@ def fixture_row(r) -> str:
             meta_bits.append(f"<span>BTTS <b style='color:#E6EDF3;'>{btts*100:.0f}%</b></span>")
         meta = " &nbsp;·&nbsp; ".join(meta_bits)
 
-        pred_block = f"""
-        <div style="margin-top:10px;padding-top:10px;border-top:1px solid #1F2933;">
-          {bar}
-          <div style="display:flex;justify-content:space-between;align-items:center;
-                      margin-top:8px;font-size:11.5px;color:#8B949E;">
-            <div>{meta}</div>
-            <div>{form_pill}</div>
-          </div>
-        </div>
-        """
+        pred_block = (
+            f'<div style="margin-top:10px;padding-top:10px;border-top:1px solid #1F2933;">'
+            f'{bar}'
+            f'<div style="display:flex;justify-content:space-between;align-items:center;'
+            f'margin-top:8px;font-size:11.5px;color:#8B949E;">'
+            f'<div>{meta}</div>'
+            f'<div>{form_pill}</div>'
+            f'</div>'
+            f'</div>'
+        )
 
-    return f"""
-    <div style="padding:14px 18px;border-radius:12px;background:#11181F;
-                border:1px solid #1F2933;margin-bottom:10px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;">
-        <div style="display:flex;align-items:center;gap:14px;flex:1;">
-          <div style="display:flex;align-items:center;gap:10px;min-width:240px;">
-            {home_logo}
-            <span style="color:#F0F6FC;font-weight:600;font-size:14.5px;">{home}</span>
-          </div>
-          <span style="color:#8B949E;font-weight:600;">vs</span>
-          <div style="display:flex;align-items:center;gap:10px;min-width:240px;">
-            {away_logo}
-            <span style="color:#F0F6FC;font-weight:600;font-size:14.5px;">{away}</span>
-          </div>
-        </div>
-        <div style="text-align:right;">
-          <div style="color:#E6EDF3;font-size:13.5px;font-weight:700;">{kick}</div>
-          <div style="margin-top:4px;">{pill}</div>
-        </div>
-      </div>
-      {pred_block}
-    </div>
-    """
+    return (
+        f'<div style="padding:14px 18px;border-radius:12px;background:#11181F;'
+        f'border:1px solid #1F2933;margin-bottom:10px;">'
+        f'<div style="display:flex;align-items:center;justify-content:space-between;">'
+        f'<div style="display:flex;align-items:center;gap:14px;flex:1;">'
+        f'<div style="display:flex;align-items:center;gap:10px;min-width:240px;">'
+        f'{home_logo}'
+        f'<span style="color:#F0F6FC;font-weight:600;font-size:14.5px;">{home}</span>'
+        f'</div>'
+        f'<span style="color:#8B949E;font-weight:600;">vs</span>'
+        f'<div style="display:flex;align-items:center;gap:10px;min-width:240px;">'
+        f'{away_logo}'
+        f'<span style="color:#F0F6FC;font-weight:600;font-size:14.5px;">{away}</span>'
+        f'</div>'
+        f'</div>'
+        f'<div style="text-align:right;">'
+        f'<div style="color:#E6EDF3;font-size:13.5px;font-weight:700;">{kick}</div>'
+        f'<div style="margin-top:4px;">{pill}</div>'
+        f'</div>'
+        f'</div>'
+        f'{pred_block}'
+        f'</div>'
+    )
 
 
 # ---------------------------------------------------------------------------
 # Render — group by date
 # ---------------------------------------------------------------------------
 for d, group in dfv.groupby("date_ct", sort=True):
+    n = len(group)
+    plural = "es" if n != 1 else ""
     st.markdown(
-        f"""<div style="margin:1.4rem 0 0.6rem 0;
-                       padding:8px 12px;border-left:3px solid #00C896;
-                       background:rgba(0,200,150,0.06);
-                       border-radius:0 8px 8px 0;">
-            <div style="color:#F0F6FC;font-weight:700;font-size:15px;">
-              {date_header(d)}
-            </div>
-            <div style="color:#8B949E;font-size:11.5px;margin-top:2px;
-                        text-transform:uppercase;letter-spacing:0.06em;">
-              {len(group)} match{'es' if len(group) != 1 else ''}
-            </div>
-           </div>""",
+        f'<div style="margin:1.4rem 0 0.6rem 0;padding:8px 12px;'
+        f'border-left:3px solid #00C896;background:rgba(0,200,150,0.06);'
+        f'border-radius:0 8px 8px 0;">'
+        f'<div style="color:#F0F6FC;font-weight:700;font-size:15px;">'
+        f'{date_header(d)}'
+        f'</div>'
+        f'<div style="color:#8B949E;font-size:11.5px;margin-top:2px;'
+        f'text-transform:uppercase;letter-spacing:0.06em;">'
+        f'{n} match{plural}'
+        f'</div>'
+        f'</div>',
         unsafe_allow_html=True,
     )
     blocks = "".join(fixture_row(r) for _, r in group.iterrows())
