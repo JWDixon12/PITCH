@@ -110,21 +110,55 @@ if sim.empty or kalshi.empty:
     )
     st.stop()
 
-# Merge fixtures (for venue display) and Kalshi
+# Merge fixtures (for venue display) and Kalshi.
+# Skip columns sim already has — pandas would otherwise suffix to _x/_y
+# and break logo + api-id lookups downstream (same gotcha as the slate page).
 if not fixtures.empty:
-    fix_cols = ["fixture_id", "home_api_id", "away_api_id", "venue", "round"]
-    have = [c for c in fix_cols if c in fixtures.columns]
+    candidate_cols = ["fixture_id", "home_api_id", "away_api_id", "venue", "round"]
+    have = [c for c in candidate_cols if c in fixtures.columns
+              and (c == "fixture_id" or c not in sim.columns)]
     sim = sim.merge(fixtures[have], on="fixture_id", how="left")
 sim = sim.merge(kalshi, on="fixture_id", how="left")
 
 leagues_in_slate = sorted(sim["league_code"].dropna().unique().tolist())
-selected = tb_leagues.multiselect(
-    "Leagues", leagues_in_slate, default=leagues_in_slate,
-    format_func=league_label,
-    placeholder="Show all leagues",
-)
-if selected:
-    sim = sim[sim["league_code"].isin(selected)]
+
+# Per-league checkbox state, keyed by league only so flipping dates preserves
+# the user's selection. Same pattern as the Today's Slate page.
+def _lg_key(lg: str) -> str:
+    return f"lg_chk__{lg}"
+
+for lg in leagues_in_slate:
+    st.session_state.setdefault(_lg_key(lg), True)
+
+selected = [lg for lg in leagues_in_slate if st.session_state[_lg_key(lg)]]
+
+if len(selected) == len(leagues_in_slate):
+    label = f"All {len(leagues_in_slate)} leagues"
+elif len(selected) == 0:
+    label = "No leagues selected"
+elif len(selected) == 1:
+    label = f"1 league: {league_label(selected[0])}"
+else:
+    label = f"{len(selected)} of {len(leagues_in_slate)} leagues selected"
+
+with tb_leagues.popover(label, use_container_width=True):
+    bc1, bc2 = st.columns(2)
+    if bc1.button("Select all", key="picks_lg_select_all", use_container_width=True):
+        for lg in leagues_in_slate:
+            st.session_state[_lg_key(lg)] = True
+        st.rerun()
+    if bc2.button("Clear all",  key="picks_lg_clear_all",  use_container_width=True):
+        for lg in leagues_in_slate:
+            st.session_state[_lg_key(lg)] = False
+        st.rerun()
+
+    st.divider()
+
+    for lg in leagues_in_slate:
+        st.checkbox(league_label(lg), key=_lg_key(lg))
+
+selected = [lg for lg in leagues_in_slate if st.session_state[_lg_key(lg)]]
+sim = sim[sim["league_code"].isin(selected)] if selected else sim.iloc[0:0]
 
 with tb_settings:
     s1, s2 = st.columns(2)
@@ -200,8 +234,9 @@ for _, r in sim.iterrows():
                             f"{int(cal['losses'])} ({cal['actual_rate']*100:.1f}%) "
                             f"over {int(cal['n_games']):,} games")
         rows.append({
-            "Match":         f"{team_abbr(r['home'])} vs {team_abbr(r['away'])}",
-            "Match (full)":  f"{r['home']} vs {r['away']}",
+            # "Away @ Home" — convention is the away team listed first with
+            # an @ to mean "at the home venue". Use full team names not abbrev.
+            "Match":         f"{r['away']} @ {r['home']}",
             "League":        league_label(r["league_code"]),
             "Market":        market_label,
             "Sim %":         sim_p * 100,
@@ -270,18 +305,17 @@ display["Kelly %"]      = display["Kelly %"].round(1).astype(str) + "%"
 display["Units (rec.)"] = display["Units (rec.)"].round(2).astype(str) + "u"
 display["Kalshi ¢"]     = display["Kalshi ¢"].astype(str) + "¢"
 
-# Drop the helper full-name column for the visible table; keep Match (abbrev).
 table = display[[
     "Match", "League", "Market", "Sim %", "Kalshi ¢", "American",
     "Edge %", "Kelly %", "Units (rec.)", "Calibration",
-]].rename(columns={"Match": "Match"})
+]]
 
 st.dataframe(
     table,
     width="stretch",
     hide_index=True,
     column_config={
-        "Match":        st.column_config.TextColumn("Match", width="small"),
+        "Match":        st.column_config.TextColumn("Match", width="medium"),
         "League":       st.column_config.TextColumn("League"),
         "Market":       st.column_config.TextColumn("Market", width="medium"),
         "Sim %":        st.column_config.TextColumn("Sim %"),
