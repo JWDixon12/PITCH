@@ -44,6 +44,19 @@ def load_intl_upcoming() -> pd.DataFrame:
     df = df.sort_values("kickoff_utc").reset_index(drop=True)
     df["kickoff_ct"] = df["kickoff_utc"].dt.tz_convert(CT)
     df["date_ct"] = df["kickoff_ct"].dt.date
+
+    # Merge in form-aware predictions when available.
+    pred_path = DATA_PROC / "intl_predictions.parquet"
+    if pred_path.exists():
+        pred = pd.read_parquet(pred_path)
+        keep_cols = [
+            "fixture_id", "p_home", "p_draw", "p_away",
+            "lambda_home", "lambda_away", "p_over_2_5", "p_btts",
+            "top_scoreline", "n_home_starters_with_form",
+            "n_away_starters_with_form", "model_status",
+        ]
+        keep_cols = [c for c in keep_cols if c in pred.columns]
+        df = df.merge(pred[keep_cols], on="fixture_id", how="left")
     return df
 
 
@@ -242,6 +255,67 @@ def flag_img(url: str | None, width: int = 36) -> str:
     return f'<img src="{url}" style="{style}" loading="lazy"/>'
 
 
+GREEN = "#3FB950"
+RED   = "#F85149"
+DRAW  = "#F0B93C"
+
+
+def _winprob_bar(p_h: float, p_d: float, p_a: float) -> str:
+    """Three-segment proportional bar with percentage labels."""
+    if not (pd.notna(p_h) and pd.notna(p_d) and pd.notna(p_a)):
+        return ""
+    h = max(p_h, 0.0)
+    d = max(p_d, 0.0)
+    a = max(p_a, 0.0)
+    total = max(h + d + a, 1e-6)
+    pct_h = h / total * 100
+    pct_d = d / total * 100
+    pct_a = a / total * 100
+    return f"""
+    <div style="display:flex;width:100%;height:10px;border-radius:6px;overflow:hidden;
+                margin-top:6px;background:#1F2933;">
+      <div style="width:{pct_h:.1f}%;background:{GREEN};"></div>
+      <div style="width:{pct_d:.1f}%;background:{DRAW};"></div>
+      <div style="width:{pct_a:.1f}%;background:{RED};"></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;font-size:11px;
+                color:#C9D1D9;margin-top:3px;font-weight:600;">
+      <span style="color:{GREEN};">H {pct_h:.0f}%</span>
+      <span style="color:{DRAW};">D {pct_d:.0f}%</span>
+      <span style="color:{RED};">A {pct_a:.0f}%</span>
+    </div>
+    """
+
+
+def _form_pill(n_home: int | float, n_away: int | float) -> str:
+    """Tiny indicator showing how much club-form data backed this prediction.
+
+    Tooltip explains: more starters with recent club form → tighter prediction.
+    """
+    if pd.isna(n_home) or pd.isna(n_away):
+        return ""
+    h = int(n_home or 0)
+    a = int(n_away or 0)
+    mn = min(h, a)
+    if mn >= 8:
+        bg, fg, label = "#1F4D2A", "#7EE787", f"FORM {h}/{a}"
+        tip = "Both projected XIs have ≥8 starters with recent club form — high confidence in form features."
+    elif mn >= 5:
+        bg, fg, label = "#3D4D1F", "#C5E372", f"FORM {h}/{a}"
+        tip = "Lineup form is partially observed — prediction blends team baseline with available club form."
+    elif mn >= 1:
+        bg, fg, label = "#4D3A1F", "#F0B93C", f"FORM {h}/{a}"
+        tip = "Limited club form coverage on at least one side — prediction leans more on team+manager baseline."
+    else:
+        bg, fg, label = "#3D1F1F", "#F85149", f"NO FORM"
+        tip = "No club form data for either projected XI (players in unscraped leagues). Prediction is team+manager baseline only."
+    return (
+        f'<span title="{tip}" style="background:{bg};color:{fg};padding:2px 8px;'
+        f'border-radius:999px;font-size:10px;font-weight:600;letter-spacing:0.04em;'
+        f'text-transform:uppercase;">{label}</span>'
+    )
+
+
 def fixture_row(r) -> str:
     home_logo = flag_img(r.get("home_logo"))
     away_logo = flag_img(r.get("away_logo"))
@@ -249,35 +323,63 @@ def fixture_row(r) -> str:
     away = r.get("away_name") or ""
     rd = (r.get("round") or "").replace("Group Stage - ", "MD ")
     pill = comp_pill(r.get("comp_name") or "", rd)
-    venue = r.get("venue_name") or ""
-    city = r.get("venue_city") or ""
-    venue_line = ""
-    if venue or city:
-        loc = " · ".join(x for x in [venue, city] if x)
-        venue_line = (
-            f'<div style="color:#8B949E;font-size:11px;margin-top:2px;">{loc}</div>'
-        )
     kick = fmt_kickoff(r["kickoff_ct"])
+
+    has_pred = pd.notna(r.get("p_home"))
+    pred_block = ""
+    if has_pred:
+        bar = _winprob_bar(r["p_home"], r["p_draw"], r["p_away"])
+        scoreline = r.get("top_scoreline") or ""
+        o25 = r.get("p_over_2_5")
+        btts = r.get("p_btts")
+        lh = r.get("lambda_home")
+        la = r.get("lambda_away")
+        form_pill = _form_pill(r.get("n_home_starters_with_form"),
+                               r.get("n_away_starters_with_form"))
+
+        meta_bits = []
+        if scoreline:
+            meta_bits.append(f"<span>Top score <b style='color:#E6EDF3;'>{scoreline}</b></span>")
+        if pd.notna(lh) and pd.notna(la):
+            meta_bits.append(f"<span>λ <b style='color:#E6EDF3;'>{lh:.2f}–{la:.2f}</b></span>")
+        if pd.notna(o25):
+            meta_bits.append(f"<span>O 2.5 <b style='color:#E6EDF3;'>{o25*100:.0f}%</b></span>")
+        if pd.notna(btts):
+            meta_bits.append(f"<span>BTTS <b style='color:#E6EDF3;'>{btts*100:.0f}%</b></span>")
+        meta = " &nbsp;·&nbsp; ".join(meta_bits)
+
+        pred_block = f"""
+        <div style="margin-top:10px;padding-top:10px;border-top:1px solid #1F2933;">
+          {bar}
+          <div style="display:flex;justify-content:space-between;align-items:center;
+                      margin-top:8px;font-size:11.5px;color:#8B949E;">
+            <div>{meta}</div>
+            <div>{form_pill}</div>
+          </div>
+        </div>
+        """
+
     return f"""
-    <div style="display:flex;align-items:center;justify-content:space-between;
-                padding:14px 18px;border-radius:12px;background:#11181F;
+    <div style="padding:14px 18px;border-radius:12px;background:#11181F;
                 border:1px solid #1F2933;margin-bottom:10px;">
-      <div style="display:flex;align-items:center;gap:14px;flex:1;">
-        <div style="display:flex;align-items:center;gap:10px;min-width:240px;">
-          {home_logo}
-          <span style="color:#F0F6FC;font-weight:600;font-size:14.5px;">{home}</span>
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <div style="display:flex;align-items:center;gap:14px;flex:1;">
+          <div style="display:flex;align-items:center;gap:10px;min-width:240px;">
+            {home_logo}
+            <span style="color:#F0F6FC;font-weight:600;font-size:14.5px;">{home}</span>
+          </div>
+          <span style="color:#8B949E;font-weight:600;">vs</span>
+          <div style="display:flex;align-items:center;gap:10px;min-width:240px;">
+            {away_logo}
+            <span style="color:#F0F6FC;font-weight:600;font-size:14.5px;">{away}</span>
+          </div>
         </div>
-        <span style="color:#8B949E;font-weight:600;">vs</span>
-        <div style="display:flex;align-items:center;gap:10px;min-width:240px;">
-          {away_logo}
-          <span style="color:#F0F6FC;font-weight:600;font-size:14.5px;">{away}</span>
+        <div style="text-align:right;">
+          <div style="color:#E6EDF3;font-size:13.5px;font-weight:700;">{kick}</div>
+          <div style="margin-top:4px;">{pill}</div>
         </div>
       </div>
-      <div style="text-align:right;">
-        <div style="color:#E6EDF3;font-size:13.5px;font-weight:700;">{kick}</div>
-        <div style="margin-top:4px;">{pill}</div>
-        {venue_line}
-      </div>
+      {pred_block}
     </div>
     """
 
@@ -312,12 +414,20 @@ st.markdown(
     """<div style="margin-top:2rem;padding:14px 18px;border-radius:12px;
         background:#161B22;border:1px solid #1F2933;color:#8B949E;
         font-size:12.5px;line-height:1.55;">
-        <strong style="color:#C9D1D9;">Why no predictions on this page?</strong><br/>
-        The player-aware club model is fit on club football — its player and
-        manager-spell coefficients don't transfer cleanly to national teams,
-        which assemble briefly and field very different XIs than club sides.
-        We'll add a separate intl model trained on national-team data closer
-        to the World Cup.
+        <strong style="color:#C9D1D9;">How these predictions are made</strong><br/>
+        A two-stage model fit on national-team data. <b>Stage 1</b>: a
+        team + manager-spell Poisson trained on 8,400+ historical intl matches
+        — every coaching tenure gets its own latent strength so a Brazil
+        under Dorival is not a Brazil under Tite. <b>Stage 2</b>: a Poisson
+        regression with the projected XI's <b>recent club form</b> as
+        features (goals + assists per 90, shots on target, average match
+        rating, opposing keeper conceded/90). Trained on intl matches where
+        we had cached lineup data plus the starters' club stats. The
+        <b>FORM</b> pill shows how many of the 11 projected starters per
+        side had recent club form available — when it's high, club form is
+        carrying real weight; when it says NO FORM, the prediction is
+        team + manager-spell only because the players are in leagues we
+        don't yet scrape.
     </div>""",
     unsafe_allow_html=True,
 )
