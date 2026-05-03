@@ -461,6 +461,122 @@ def _mini_cal_pill(cal: dict | None,
     )
 
 
+def _drivers_block(team: str, drivers: str) -> str:
+    """Top-3 attack drivers, rendered as small chips. Empty string if no data.
+
+    Coefs near zero (|c| < 0.005) get clamped to +0.00 so we don't render
+    the misleading '-0.00' that the model's `{c:+.02f}` formatter produces
+    for tiny-negative coefficients. Color flips red when the player's coef
+    is meaningfully negative (i.e., they suppress goals when they start).
+    """
+    if not drivers or pd.isna(drivers):
+        return ""
+    chips: list[str] = []
+    for chunk in [s.strip() for s in str(drivers).split(",") if s.strip()]:
+        # Each chunk looks like "Caicedo (+0.34)"
+        if "(" in chunk and chunk.endswith(")"):
+            name = chunk[:chunk.rfind("(")].strip()
+            coef_str = chunk[chunk.rfind("(") + 1:-1]
+        else:
+            name, coef_str = chunk, ""
+
+        coef_html = ""
+        if coef_str:
+            try:
+                coef_val = float(coef_str)
+            except ValueError:
+                coef_val = 0.0
+            if abs(coef_val) < 0.005:
+                display = "+0.00"
+                color = "#8B949E"
+            elif coef_val > 0:
+                display = f"+{coef_val:.2f}"
+                color = "#7EE787"
+            else:
+                display = f"{coef_val:.2f}"
+                color = "#F85149"
+            coef_html = (f' <span style="color:{color};font-weight:500;'
+                         f'margin-left:4px;">{display}</span>')
+
+        chips.append(
+            f'<span style="display:inline-block;padding:5px 10px;'
+            f'background:#161B22;border:1px solid #2D333B;border-radius:8px;'
+            f'font-size:12px;color:#C9D1D9;margin:3px 4px 0 0;">'
+            f'{name}{coef_html}</span>'
+        )
+    if not chips:
+        return ""
+    return (
+        f'<div style="margin-top:8px;">'
+        f'<div style="font-size:11px;color:#8B949E;text-transform:uppercase;'
+        f'letter-spacing:0.06em;font-weight:600;">Top drivers · {team}</div>'
+        f'<div style="margin-top:4px;">' + "".join(chips) + '</div>'
+        f'</div>'
+    )
+
+
+def _rotation_alert_block(rot: int | float | None) -> str:
+    """Inline alert when ≥3 usual starters are missing from a confirmed XI."""
+    try:
+        n = int(rot) if rot is not None and not pd.isna(rot) else 0
+    except (TypeError, ValueError):
+        n = 0
+    if n < 3:
+        return ""
+    return (
+        f'<div style="margin-top:6px;padding:4px 10px;background:#4D1F1F;'
+        f'border-radius:6px;color:#F85149;font-size:12px;font-weight:600;'
+        f'display:inline-block;">'
+        f'⚠️ Rotation alert · {n} usual starters out</div>'
+    )
+
+
+def lineup_panel(r: pd.Series) -> str:
+    """Side-by-side top-drivers panel — only renders when PA columns exist.
+
+    Renders the per-player attack-coefficient chips that explain *why* the
+    sim landed where it did. Returns '' when the row is from the legacy
+    team-only sim (no driver columns), so old slates still work unchanged.
+
+    Rotation alert appears inline when ≥3 of the team's usual starters are
+    missing from a confirmed XI — a real signal that a result might surprise.
+    """
+    if "home_top_drivers" not in r.index and "home_xi_source" not in r.index:
+        return ""
+
+    h_drv = _s(r.get("home_top_drivers"))
+    a_drv = _s(r.get("away_top_drivers"))
+    h_rot = r.get("home_rotation_alert")
+    a_rot = r.get("away_rotation_alert")
+
+    if not (h_drv or a_drv):
+        return ""
+
+    home = r["home"]; away = r["away"]
+
+    def side(team: str, drv: str, rot) -> str:
+        return (
+            f'<div style="flex:1 1 320px;min-width:280px;padding:16px 18px;'
+            f'background:#161B22;border:1px solid #2D333B;border-radius:10px;">'
+            f'<div style="font-size:14px;font-weight:700;color:#F0F6FC;">'
+            f'{team}</div>'
+            f'{_rotation_alert_block(rot)}'
+            f'{_drivers_block(team, drv)}'
+            f'</div>'
+        )
+
+    return (
+        f'<div style="margin-top:8px;padding:14px 16px;background:#0E1117;'
+        f'border:1px solid #2D333B;border-radius:10px;">'
+        f'<div style="font-size:11px;color:#8B949E;text-transform:uppercase;'
+        f'letter-spacing:0.06em;margin-bottom:10px;">Top drivers</div>'
+        f'<div style="display:flex;gap:10px;flex-wrap:wrap;">'
+        + side(home, h_drv, h_rot)
+        + side(away, a_drv, a_rot)
+        + f'</div></div>'
+    )
+
+
 def secondary_markets(r: pd.Series) -> str:
     """Totals + BTTS + clean-sheet probabilities row, each with calibration."""
     p_o15 = float(r.get("p_o_15") or 0)
@@ -669,6 +785,9 @@ for i, (_, row) in enumerate(sim.iterrows()):
         st.markdown(GAME_DIVIDER, unsafe_allow_html=True)
     st.markdown(game_header(row), unsafe_allow_html=True)
     st.markdown(winprob_bar(row),  unsafe_allow_html=True)
+    lp = lineup_panel(row)
+    if lp:
+        st.markdown(lp, unsafe_allow_html=True)
     st.markdown(secondary_markets(row), unsafe_allow_html=True)
     st.markdown(kalshi_panel(row),   unsafe_allow_html=True)
 

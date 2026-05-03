@@ -423,10 +423,30 @@ def available_dates() -> list[str]:
 
 @st.cache_data(ttl=300)
 def load_slate(date_str: str) -> pd.DataFrame:
-    p = TODAY_DIR / date_str / "sim_lines.parquet"
+    """Prefer the player-aware sim (sim_lines_pa.parquet) when it exists.
+
+    Player-aware parquet adds: home_xi_source/away_xi_source ('confirmed' or
+    'projected'), home_xi_confidence/away_xi_confidence, home_top_drivers/
+    away_top_drivers, home_rotation_alert/away_rotation_alert. Falls back to
+    the legacy team-only sim when the PA file isn't there yet.
+    """
+    pa = TODAY_DIR / date_str / "sim_lines_pa.parquet"
+    legacy = TODAY_DIR / date_str / "sim_lines.parquet"
+    p = pa if pa.exists() else legacy
     if not p.exists():
         return pd.DataFrame()
     return pd.read_parquet(p)
+
+
+def _slate_path(date_str: str) -> Path | None:
+    """Resolve which slate parquet would be loaded for a given date."""
+    pa = TODAY_DIR / date_str / "sim_lines_pa.parquet"
+    legacy = TODAY_DIR / date_str / "sim_lines.parquet"
+    if pa.exists():
+        return pa
+    if legacy.exists():
+        return legacy
+    return None
 
 
 @st.cache_data(ttl=120)
@@ -559,22 +579,20 @@ def last_updated_text() -> str:
     dates = available_dates()
     if not dates:
         return "no data yet"
-    latest = TODAY_DIR / dates[0]
-    sim = latest / "sim_lines.parquet"
-    if sim.exists():
+    sim = _slate_path(dates[0])
+    if sim is not None:
         ts = datetime.fromtimestamp(sim.stat().st_mtime)
         return f"slate for {dates[0]} (refreshed {ts.strftime('%Y-%m-%d %H:%M')})"
     return f"slate for {dates[0]}"
 
 
 def sim_run_at_ct(date_str: str) -> str:
-    """Human-readable 'Last simulated' for the slate's sim_lines.parquet, in CT.
+    """Human-readable 'Last simulated' for the slate, in CT.
 
-    Returns an empty string if the file doesn't exist.
+    Returns an empty string if no slate file exists.
     """
-    sim = TODAY_DIR / date_str / "sim_lines.parquet"
-    if not sim.exists():
+    sim = _slate_path(date_str)
+    if sim is None:
         return ""
-    # mtime is a unix timestamp; treat as UTC then convert to fixed-offset CT
     ts = datetime.fromtimestamp(sim.stat().st_mtime, tz=timezone.utc).astimezone(CT)
     return ts.strftime("%b %d, %Y %I:%M %p CT").replace(" 0", " ")
